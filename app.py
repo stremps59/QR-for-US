@@ -4,6 +4,7 @@ import qrcode
 import io
 import uuid
 from datetime import datetime, timedelta
+import os
 
 app = Flask(__name__)
 do_over_tokens = {}
@@ -65,4 +66,5 @@ def regenerate_qr():
     return send_file(img_io, mimetype='image/png', as_attachment=True, download_name='qr_updated.png')
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
