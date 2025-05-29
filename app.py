@@ -6,17 +6,19 @@ import os
 from io import BytesIO
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
-import base64
+from reportlab.lib.utils import ImageReader
+from PIL import Image
 
 app = Flask(__name__)
 
-# Email configuration from environment variables
+# Email Configuration
 app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER')
-app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT'))
 app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USE_SSL'] = False
+app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS') == 'True'
+app.config['MAIL_USE_SSL'] = os.environ.get('MAIL_USE_SSL') == 'True'
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER')
 
 mail = Mail(app)
 
@@ -31,28 +33,33 @@ def generate_qr():
         return jsonify({'error': 'Missing url or email'}), 400
 
     # Generate QR code
-    qr = qrcode.make(url)
+    qr = qrcode.QRCode(box_size=10, border=4)
+    qr.add_data(url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+
+    # Save PNG to memory
     img_io = BytesIO()
-    qr.save(img_io, 'PNG')
+    img.save(img_io, 'PNG')
     img_io.seek(0)
 
-    # Generate PDF
+    # Generate PDF with QR code
     pdf_io = BytesIO()
     c = canvas.Canvas(pdf_io, pagesize=letter)
+    c.drawString(100, 750, "Scan the QR code below:")
     c.drawImage(ImageReader(BytesIO(img_io.getvalue())), 100, 500, width=200, height=200)
-    c.drawString(100, 480, url)
     c.save()
     pdf_io.seek(0)
 
-    # Email with attachments
-    msg = Message('Your QR Code', sender=app.config['MAIL_USERNAME'], recipients=[email])
-    msg.body = f"{message}"
+    # Send email
+    msg = Message("Your QR Code", recipients=[email])
+    msg.body = message
     msg.attach("qr_code.png", "image/png", img_io.getvalue())
     msg.attach("qr_code.pdf", "application/pdf", pdf_io.getvalue())
 
     mail.send(msg)
 
-    return jsonify({'message': 'QR code sent successfully'})
+    return jsonify({'status': 'QR Code sent successfully'})
 
 if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0', port=10000)
+    app.run(debug=False, host="0.0.0.0", port=10000)
