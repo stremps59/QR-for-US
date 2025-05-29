@@ -53,7 +53,21 @@ def generate_qr():
 
     # Send email
     msg = Message("Your QR Code", recipients=[email])
-    msg.body = message
+msg.body = """Thank you for choosing QR for US!
+
+Your custom QR code has been created and is included as an attachment in this email.
+
+This QR code is both scanable and clickable. That means you can:
+• Scan it using a phone or tablet camera to be taken to the destination instantly.
+• Click it digitally (in this email or when copied online) and it will act like a direct link.
+
+To save or use your QR code:
+• Right-click (or tap and hold) on the QR image to download it to your device.
+• Paste it into documents, websites, or social media. It will remain fully functional!
+
+We're honored to help tell your story, one scan at a time.
+
+- The QR for US Team"""
     msg.attach("qr_code.png", "image/png", img_io.getvalue())
     msg.attach("qr_code.pdf", "application/pdf", pdf_io.getvalue())
 
