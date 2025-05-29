@@ -1,17 +1,21 @@
 
-from flask import Flask, request, jsonify
-import qrcode
-from reportlab.pdfgen import canvas
-from flask_mail import Mail, Message
 import os
-import smtplib
+import io
+import qrcode
+from flask import Flask, request, jsonify
+from flask_mail import Mail, Message
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.utils import ImageReader
+from email.mime.image import MIMEImage
 
 app = Flask(__name__)
 
-# Configure Flask-Mail
+# Email configuration
 app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER')
-app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
-app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'True') == 'True'
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT'))
+app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS') == 'True'
+app.config['MAIL_USE_SSL'] = os.environ.get('MAIL_USE_SSL') == 'True'
 app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER')
@@ -20,48 +24,47 @@ mail = Mail(app)
 
 @app.route('/generate-qr', methods=['POST'])
 def generate_qr():
-    data = request.json
+    data = request.get_json()
     url = data.get('url')
     email = data.get('email')
 
     if not url or not email:
         return jsonify({'error': 'Missing URL or email'}), 400
 
-    try:
-        # Generate QR code (PNG)
-        img = qrcode.make(url)
-        png_path = 'qr_code.png'
-        img.save(png_path)
+    # Generate QR code
+    qr = qrcode.make(url)
+    img_io = io.BytesIO()
+    qr.save(img_io, 'PNG')
+    img_io.seek(0)
 
-        # Generate PDF with QR code
-        pdf_path = 'qr_code.pdf'
-        c = canvas.Canvas(pdf_path)
-        c.drawImage(png_path, 100, 500, width=300, height=300)
-        c.drawString(100, 480, f"Scan or click this code to visit: {url}")
-        c.save()
+    # Create PDF
+    pdf_io = io.BytesIO()
+    c = canvas.Canvas(pdf_io, pagesize=letter)
+    c.drawImage(ImageReader(img_io), 100, 500, width=200, height=200)
+    c.drawString(100, 480, url)
+    c.save()
+    pdf_io.seek(0)
 
-        # Log email connection attempt
-        print("Attempting to send email via:")
-        print(f"MAIL_SERVER: {app.config['MAIL_SERVER']}")
-        print(f"MAIL_PORT: {app.config['MAIL_PORT']}")
-        print(f"MAIL_USE_TLS: {app.config['MAIL_USE_TLS']}")
-        print(f"MAIL_USERNAME: {app.config['MAIL_USERNAME']}")
+    # Compose email
+    msg = Message(subject="Your QR for US Code", recipients=[email])
+    msg.html = f'''
+    <p>Here is your custom QR code:</p>
+    <a href="{url}"><img src="cid:qrimage" alt="QR Code" style="width:200px;height:200px;"/></a>
+    <p>If you can't scan it, just <a href="{url}">click here</a>.</p>
+    <p>Or copy and paste this link: {url}</p>
+    '''
 
-        # Email the files
-        msg = Message("Your QR Code from QR for US", recipients=[email])
-        msg.body = f"Hi! Your QR code is ready. It links to:\n{url}"
-        with open(png_path, 'rb') as png_file:
-            msg.attach("qr_code.png", "image/png", png_file.read())
-        with open(pdf_path, 'rb') as pdf_file:
-            msg.attach("qr_code.pdf", "application/pdf", pdf_file.read())
-        mail.send(msg)
+    # Attach PNG image as inline
+    image = MIMEImage(img_io.read(), 'png')
+    image.add_header('Content-ID', '<qrimage>')
+    image.add_header('Content-Disposition', 'inline', filename='qr.png')
+    msg.attach(image)
 
-        return jsonify({'message': 'QR code sent successfully'}), 200
+    # Attach PDF
+    msg.attach('qr_code.pdf', 'application/pdf', pdf_io.read())
 
-    except Exception as e:
-        print("Exception occurred:", str(e))
-        return jsonify({'error': 'Internal Server Error', 'details': str(e)}), 500
+    mail.send(msg)
+    return jsonify({'message': 'QR Code sent successfully'})
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(debug=False, host='0.0.0.0', port=10000)
