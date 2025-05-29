@@ -1,36 +1,33 @@
-
+import os
+import qrcode
 from flask import Flask, request, jsonify
 from flask_mail import Mail, Message
-import qrcode
-import os
 from io import BytesIO
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.utils import ImageReader
-from PIL import Image
 
 app = Flask(__name__)
 
-# Email Configuration
+# Configure mail
 app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER')
-app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT'))
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
 app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
-app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS') == 'True'
-app.config['MAIL_USE_SSL'] = os.environ.get('MAIL_USE_SSL') == 'True'
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER')
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
 
 mail = Mail(app)
 
-@app.route('/generate-qr', methods=['POST'])
+@app.route("/generate-qr", methods=["POST"])
 def generate_qr():
-    data = request.json
-    url = data.get('url')
-    email = data.get('email')
-    message = data.get('message', '')
+    data = request.get_json()
+    url = data.get("url")
+    recipient = data.get("email")
+    message = data.get("message", "Here is your QR code!")
 
-    if not url or not email:
-        return jsonify({'error': 'Missing url or email'}), 400
+    if not url or not recipient:
+        return jsonify({"error": "Missing required parameters"}), 400
 
     # Generate QR code
     qr = qrcode.QRCode(box_size=10, border=4)
@@ -38,42 +35,41 @@ def generate_qr():
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
 
-    # Save PNG to memory
+    # Save QR code to a BytesIO stream
     img_io = BytesIO()
     img.save(img_io, 'PNG')
     img_io.seek(0)
 
-    # Generate PDF with QR code
+    # Create a PDF with the QR code and clickable text
     pdf_io = BytesIO()
     c = canvas.Canvas(pdf_io, pagesize=letter)
-    c.drawString(100, 750, "Scan the QR code below:")
     c.drawImage(ImageReader(BytesIO(img_io.getvalue())), 100, 500, width=200, height=200)
+    c.linkURL(url, (100, 480, 300, 500), relative=0, thickness=1)
+    c.drawString(100, 480, "Click or scan the QR code to visit your link!")
     c.save()
     pdf_io.seek(0)
 
-    # Send email
-    msg = Message("Your QR Code", recipients=[email])
-msg.body = """Thank you for choosing QR for US!
+    # Create email message
+    msg = Message("Your QR for US code", sender=app.config['MAIL_USERNAME'], recipients=[recipient])
+    msg.body = f"""{message}
 
-Your custom QR code has been created and is included as an attachment in this email.
+The attached QR code is both scannable and clickable:
+- You can scan it with your phone camera.
+- Or click the link in the attached PDF.
 
-This QR code is both scanable and clickable. That means you can:
-• Scan it using a phone or tablet camera to be taken to the destination instantly.
-• Click it digitally (in this email or when copied online) and it will act like a direct link.
+To reuse it elsewhere:
+1. Download and save the QR code attachment.
+2. You may insert it into documents, presentations, or emails.
+3. Remember: The clickable version (PDF) is also scannable!
 
-To save or use your QR code:
-• Right-click (or tap and hold) on the QR image to download it to your device.
-• Paste it into documents, websites, or social media. It will remain fully functional!
+Thank you for choosing QR for US. We're honored to be part of your story."""
 
-We're honored to help tell your story, one scan at a time.
-
-- The QR for US Team"""
     msg.attach("qr_code.png", "image/png", img_io.getvalue())
     msg.attach("qr_code.pdf", "application/pdf", pdf_io.getvalue())
 
     mail.send(msg)
 
-    return jsonify({'status': 'QR Code sent successfully'})
+    return jsonify({"message": "QR code sent successfully"}), 200
 
-if __name__ == '__main__':
-    app.run(debug=False, host="0.0.0.0", port=10000)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
