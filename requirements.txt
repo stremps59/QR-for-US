@@ -1,4 +1,5 @@
+
 Flask
 qrcode
-requests
+flask_cors
 Pillow
