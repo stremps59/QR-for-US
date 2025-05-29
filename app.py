@@ -1,77 +1,68 @@
 
-import os
+from flask import Flask, request, render_template_string, send_file
 import qrcode
-import requests
-from flask import Flask, request, jsonify
-from io import BytesIO
-import base64
+import io
+import uuid
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
+do_over_tokens = {}
 
-MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
-MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")
-MAILGUN_FROM = f"QR for US <qrforus@{MAILGUN_DOMAIN}>"
+def generate_qr_image(url, fg_color="black", bg_color="white"):
+    qr = qrcode.QRCode(box_size=10, border=4)
+    qr.add_data(url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color=fg_color, back_color=bg_color)
+    img_io = io.BytesIO()
+    img.save(img_io, 'PNG')
+    img_io.seek(0)
+    return img_io
 
-@app.route('/generate_qr', methods=['POST'])
-def generate_qr():
-    data = request.json
-    user_email = data.get('email')
-    target_url = data.get('url')
+@app.route('/create', methods=['POST'])
+def create_qr():
+    target_url = request.form['url']
+    token = str(uuid.uuid4())[:8]
+    do_over_tokens[token] = {
+        "url": target_url,
+        "fg": "black",
+        "bg": "white",
+        "remaining": 2,
+        "created": datetime.utcnow()
+    }
+    do_over_link = f"https://qrforus.com/do-over?id={token}"
+    return f"QR created. <a href='{do_over_link}'>Do Over link</a>"
 
-    if not user_email or not target_url:
-        return jsonify({"error": "Missing email or URL"}), 400
+@app.route('/do-over')
+def do_over_form():
+    token = request.args.get("id")
+    if token not in do_over_tokens:
+        return "Invalid or expired link", 400
+    return render_template_string("""
+        <form method='POST' action='/regenerate'>
+            <input type='hidden' name='token' value='{{ token }}'>
+            Foreground Color: <input type='text' name='fg' value='black'><br>
+            Background Color: <input type='text' name='bg' value='white'><br>
+            <button type='submit'>Generate New QR</button>
+        </form>
+    """, token=token)
 
-    # Generate QR code
-    qr = qrcode.make(target_url)
-    qr_img_io = BytesIO()
-    qr.save(qr_img_io, 'PNG')
-    qr_img_io.seek(0)
+@app.route('/regenerate', methods=['POST'])
+def regenerate_qr():
+    token = request.form['token']
+    if token not in do_over_tokens:
+        return "Invalid token", 400
 
-    # Encode image for inline HTML embedding
-    img_base64 = base64.b64encode(qr_img_io.getvalue()).decode('utf-8')
-    qr_img_io.seek(0)
+    record = do_over_tokens[token]
+    if datetime.utcnow() - record['created'] > timedelta(hours=24) or record['remaining'] <= 0:
+        return "Do Over expired", 403
 
-    html_body = f"""
-    <html>
-        <body>
-            <h2>Your QR Code</h2>
-            <p>📱 <b>Scan it:</b> Use your phone camera to scan the image below.</p>
-            <p>🖱️ <b>Click it:</b> This image is also clickable — test it now!</p>
-            <p>🖨️ <b>Print it:</b> The attached image is high-quality and ready to print.</p>
-            <p>💾 <b>Reuse it:</b></p>
-            <ul>
-                <li>Right-click and save the image below.</li>
-                <li>Use it in your email signature, LinkedIn profile, website, or business card.</li>
-                <li><b>To keep it clickable</b>, be sure to link it to:<br>
-                <code>{target_url}</code></li>
-            </ul>
-            <p><a href="{target_url}">
-                <img src="data:image/png;base64,{img_base64}" alt="QR Code" style="max-width:300px;">
-            </a></p>
-        </body>
-    </html>
-    """
-
-    # Send via Mailgun API
-    response = requests.post(
-        f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
-        auth=("api", MAILGUN_API_KEY),
-        files=[
-            ("attachment", ("qrcode.png", qr_img_io, "image/png")),
-        ],
-        data={
-            "from": MAILGUN_FROM,
-            "to": [user_email],
-            "subject": "Your QR Code from QR for US",
-            "html": html_body
-        },
-    )
-
-    if response.status_code != 200:
-        return jsonify({"error": "Email failed", "details": response.text}), 500
-
-    return jsonify({"message": "QR code generated and emailed successfully."})
+    fg = request.form['fg']
+    bg = request.form['bg']
+    record['fg'] = fg
+    record['bg'] = bg
+    record['remaining'] -= 1
+    img_io = generate_qr_image(record['url'], fg, bg)
+    return send_file(img_io, mimetype='image/png', as_attachment=True, download_name='qr_updated.png')
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(debug=True)
