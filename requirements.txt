@@ -1,4 +1,4 @@
 Flask
 qrcode
-reportlab
-Flask-Mail
+requests
+pdfkit
