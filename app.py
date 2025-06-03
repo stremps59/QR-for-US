@@ -1,4 +1,3 @@
-
 from flask import Flask, request, jsonify
 import qrcode
 import io
@@ -7,8 +6,6 @@ import os
 import uuid
 import requests
 from flask_cors import CORS
-from PIL import Image
-from io import BytesIO
 
 app = Flask(__name__)
 CORS(app)
@@ -42,28 +39,6 @@ def generate_qr():
 
     img = qr.make_image(fill_color=color, back_color="white").convert("RGB")
 
-    # Optional logo handling
-    if logo:
-        try:
-            logo_response = requests.get(logo)
-            logo_img = Image.open(BytesIO(logo_response.content))
-
-            # Resize logo to fit inside QR code
-            basewidth = int(img.size[0] / 4)
-            wpercent = basewidth / float(logo_img.size[0])
-            hsize = int(float(logo_img.size[1]) * wpercent)
-            logo_img = logo_img.resize((basewidth, hsize), Image.ANTIALIAS)
-
-            # Paste logo into QR code
-            pos = (
-                (img.size[0] - logo_img.size[0]) // 2,
-                (img.size[1] - logo_img.size[1]) // 2
-            )
-            img.paste(logo_img, pos)
-
-        except Exception as e:
-            print(f"Logo insert failed: {e}")
-
     # Convert to base64 for clickable delivery
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
@@ -72,6 +47,23 @@ def generate_qr():
     # Simulate Do Over link generation
     qr_id = str(uuid.uuid4())[:8]
     do_over_link = f"https://qrforus.com/do-over?id={qr_id}"
+
+    # Email via Mailgun
+    MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
+    MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")
+    FROM_EMAIL = os.getenv("FROM_EMAIL")
+
+    if MAILGUN_API_KEY and MAILGUN_DOMAIN and FROM_EMAIL:
+        requests.post(
+            f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
+            auth=("api", MAILGUN_API_KEY),
+            data={
+                "from": FROM_EMAIL,
+                "to": email,
+                "subject": "Your QR Code is Ready",
+                "html": f"<p>Hi {name},</p><p>Your QR Code is ready:</p><img src='data:image/png;base64,{img_str}' /><p><a href='{do_over_link}'>Click here to Do Over</a></p>"
+            }
+        )
 
     return jsonify({
         "message": "QR created",
