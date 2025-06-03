@@ -7,6 +7,8 @@ import os
 import uuid
 import requests
 from flask_cors import CORS
+from PIL import Image
+from io import BytesIO
 
 app = Flask(__name__)
 CORS(app)
@@ -20,11 +22,13 @@ def generate_qr():
     data = request.get_json()
 
     # Extract required fields
-    name = data.get("name", "Customer")
+    name = data.get("name")
     email = data.get("email")
     destination = data.get("destination")
     qr_type = data.get("qr_type", "standard")
     color = data.get("color", "black")
+    shape = data.get("shape", "square")
+    logo = data.get("logo", None)
 
     # Generate QR
     qr = qrcode.QRCode(
@@ -35,54 +39,43 @@ def generate_qr():
     )
     qr.add_data(destination)
     qr.make(fit=True)
+
     img = qr.make_image(fill_color=color, back_color="white").convert("RGB")
 
-    # Convert image to base64
+    # Optional logo handling
+    if logo:
+        try:
+            logo_response = requests.get(logo)
+            logo_img = Image.open(BytesIO(logo_response.content))
+
+            # Resize logo to fit inside QR code
+            basewidth = int(img.size[0] / 4)
+            wpercent = basewidth / float(logo_img.size[0])
+            hsize = int(float(logo_img.size[1]) * wpercent)
+            logo_img = logo_img.resize((basewidth, hsize), Image.ANTIALIAS)
+
+            # Paste logo into QR code
+            pos = (
+                (img.size[0] - logo_img.size[0]) // 2,
+                (img.size[1] - logo_img.size[1]) // 2
+            )
+            img.paste(logo_img, pos)
+
+        except Exception as e:
+            print(f"Logo insert failed: {e}")
+
+    # Convert to base64 for clickable delivery
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
-    img_bytes = buffer.getvalue()
-    img_base64 = base64.b64encode(img_bytes).decode("utf-8")
+    img_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-    # Generate Do Over link
+    # Simulate Do Over link generation
     qr_id = str(uuid.uuid4())[:8]
     do_over_link = f"https://qrforus.com/do-over?id={qr_id}"
 
-    # Prepare email via Mailgun
-    MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
-    MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")
-
-    if not MAILGUN_API_KEY or not MAILGUN_DOMAIN:
-        return jsonify({"error": "Missing Mailgun credentials"}), 500
-
-    mailgun_url = f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages"
-
-    response = requests.post(
-        mailgun_url,
-        auth=("api", MAILGUN_API_KEY),
-        files=[("attachment", ("qr_code.png", img_bytes))],
-        data={
-            "from": f"QR for US <mailgun@{MAILGUN_DOMAIN}>",
-            "to": email,
-            "subject": "Your QR Code is Ready!",
-            "html": f"""
-<html>
-<body>
-    <p>Hi {name},</p>
-    <p>Here's your custom QR code. You can scan it or click it below:</p>
-    <p><img src="data:image/png;base64,{img_base64}" alt="QR Code" /></p>
-    <p><a href="{destination}">Go to your link</a></p>
-    <p><a href="{do_over_link}">Need a do-over?</a></p>
-</body>
-</html>
-"""
-        }
-    )
-
-    if response.status_code != 200:
-        return jsonify({"error": "Failed to send email", "details": response.text}), 500
-
     return jsonify({
-        "message": "QR created and email sent",
+        "message": "QR created",
+        "clickable_image": f"data:image/png;base64,{img_str}",
         "do_over_link": do_over_link
     })
 
