@@ -49,18 +49,18 @@ def generate_qr():
     qr_id = str(uuid.uuid4())[:8]
     do_over_link = f"https://qrforus.com/do-over?id={qr_id}"
 
-    # Email via Mailgun with logging
+    # Email via Mailgun with diagnostic output
     MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
     MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")
     FROM_EMAIL = os.getenv("FROM_EMAIL")
 
-    print("📨 Preparing to send email...")
-    print("MAILGUN_API_KEY exists:", bool(MAILGUN_API_KEY))
-    print("MAILGUN_DOMAIN:", MAILGUN_DOMAIN)
-    print("FROM_EMAIL:", FROM_EMAIL)
-    print("To email:", email)
+    print("Mailgun Variables:")
+    print("API Key:", bool(MAILGUN_API_KEY))
+    print("Domain:", MAILGUN_DOMAIN)
+    print("From Email:", FROM_EMAIL)
 
     if MAILGUN_API_KEY and MAILGUN_DOMAIN and FROM_EMAIL:
+        print("Sending email via Mailgun...")
         response = requests.post(
             f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
             auth=("api", MAILGUN_API_KEY),
@@ -71,10 +71,9 @@ def generate_qr():
                 "html": f"<p>Hi {name},</p><p>Your QR Code is ready:</p><img src='data:image/png;base64,{img_str}' /><p><a href='{do_over_link}'>Click here to Do Over</a></p>"
             }
         )
-        print("📬 Mailgun status code:", response.status_code)
-        print("📬 Mailgun response text:", response.text)
+        print("Mailgun response:", response.status_code, response.text)
     else:
-        print("🚫 Mailgun environment variables not fully configured")
+        print("Missing one or more Mailgun environment variables.")
 
     return jsonify({
         "message": "QR created",
