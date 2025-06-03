@@ -1,3 +1,4 @@
+
 from flask import Flask, request, jsonify
 import qrcode
 import io
@@ -54,7 +55,7 @@ def generate_qr():
     FROM_EMAIL = os.getenv("FROM_EMAIL")
 
     if MAILGUN_API_KEY and MAILGUN_DOMAIN and FROM_EMAIL:
-        requests.post(
+        response = requests.post(
             f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
             auth=("api", MAILGUN_API_KEY),
             data={
@@ -64,6 +65,7 @@ def generate_qr():
                 "html": f"<p>Hi {name},</p><p>Your QR Code is ready:</p><img src='data:image/png;base64,{img_str}' /><p><a href='{do_over_link}'>Click here to Do Over</a></p>"
             }
         )
+        print("📬 Mailgun response:", response.status_code, response.text)
 
     return jsonify({
         "message": "QR created",
