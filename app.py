@@ -1,88 +1,81 @@
-
 import os
+import qrcode
 import io
 import base64
-import requests
-from flask import Flask, request, jsonify
+from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
-import qrcode
-from qrcode.image.styles.moduledrawers import SquareModuleDrawer
-from PIL import Image, ImageColor
-import smtplib
+import requests
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
+import smtplib
 
 app = Flask(__name__)
 CORS(app)
 
-MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
-MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")
-MAILGUN_FROM = os.getenv("MAILGUN_FROM", "QR for US <qrforus@sandbox.mailgun.org>")
+MAILGUN_API_KEY = os.environ.get("MAILGUN_API_KEY")
+MAILGUN_DOMAIN = os.environ.get("MAILGUN_DOMAIN")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL")
 
-def parse_color(color_str):
-    try:
-        return ImageColor.getrgb(color_str)
-    except Exception:
-        return (0, 0, 0)
+def generate_qr_code(data, fill_color="black", back_color="white"):
+    qr = qrcode.QRCode(
+        version=1,
+        box_size=10,
+        border=5
+    )
+    qr.add_data(data)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color=fill_color, back_color=back_color).convert('RGB')
+    return img
 
 @app.route('/generate_qr', methods=['POST'])
 def generate_qr():
     try:
-        data = request.json
-        url = data.get('url', '')
-        email = data.get('email', '')
-        dot_color = parse_color(data.get('dot_color', 'black'))
-        bg_color = parse_color(data.get('bg_color', 'white'))
+        content = request.json
+        data = content.get('data', '')
+        email = content.get('email', '')
+        filename = content.get('filename', 'qr_code')
+        fill_color = content.get('fill_color', 'black')
+        back_color = content.get('back_color', 'white')
 
-        qr = qrcode.QRCode(
-            version=1,
-            box_size=10,
-            border=4
-        )
-        qr.add_data(url)
-        qr.make(fit=True)
-        img = qr.make_image(fill_color=dot_color, back_color=bg_color, image_factory=qrcode.image.pil.PilImage, module_drawer=SquareModuleDrawer())
+        img = generate_qr_code(data, fill_color, back_color)
+        img_byte_arr = io.BytesIO()
+        img.save(img_byte_arr, format='PNG')
+        img_byte_arr.seek(0)
 
-        buffered = io.BytesIO()
-        img.save(buffered, format="PNG")
-        qr_code_png = buffered.getvalue()
-
+        # Create email
         msg = MIMEMultipart()
-        msg['From'] = MAILGUN_FROM
+        msg['From'] = SENDER_EMAIL
         msg['To'] = email
-        msg['Subject'] = "Your QR Code from QR for US™"
+        msg['Subject'] = "Your QR for US™ Code is Ready!"
 
-        body = MIMEText("Thanks for using QR for US™! Your QR code is attached and ready to use.
+        body = MIMEText("""Thanks for using QR for US™!
 
-Simply scan or click to verify.
+Your QR code is attached and ready to use.
 
-If you selected a 'Custom' option, your QR will visually reflect that.", 'plain')
+You can scan it or click on it to visit your link. Your code is valid for 30 days (or as long as your subscription is active). Save it anywhere — on a business card, pet tag, wedding invite, resume, or product packaging.
+
+Need changes? Just reply to this email. Want to build your own landing page? We recommend Carrd™ — it’s simple and powerful.
+
+Thanks again!
+QR for US™ Team
+""")
         msg.attach(body)
 
-        part = MIMEApplication(qr_code_png, Name="qr_code.png")
-        part['Content-Disposition'] = 'attachment; filename="qr_code.png"'
+        part = MIMEApplication(img_byte_arr.read(), Name=f"{filename}.png")
+        part['Content-Disposition'] = f'attachment; filename="{filename}.png"'
         msg.attach(part)
 
         response = requests.post(
-            f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
+            f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages.mime",
             auth=("api", MAILGUN_API_KEY),
-            files={"attachment": ("qr_code.png", qr_code_png)},
-            data={"from": MAILGUN_FROM,
-                  "to": [email],
-                  "subject": "Your QR Code from QR for US™",
-                  "text": "Thanks for using QR for US™! Your QR code is attached and ready to use.
-
-Simply scan or click to verify.
-
-If you selected a 'Custom' option, your QR will visually reflect that."}
+            files={"message": ("message.mime", msg.as_string())}
         )
 
-        if response.status_code != 200:
-            return jsonify({'error': 'Mailgun delivery failed', 'details': response.text}), 500
-
-        return jsonify({'message': 'QR code generated and email sent successfully'})
-
+        if response.status_code == 200:
+            return jsonify({'message': 'QR code sent successfully'}), 200
+        else:
+            return jsonify({'error': 'Failed to send email', 'details': response.text}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
