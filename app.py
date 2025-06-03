@@ -1,100 +1,113 @@
 
-import os
-import base64
-import io
 from flask import Flask, request, jsonify
 import qrcode
-from qrcode.image.styledpil import StyledPilImage
-from qrcode.image.styles.moduledrawers import RoundedModuleDrawer, SquareModuleDrawer, GappedSquareModuleDrawer
-from qrcode.image.styles.colordrawers import SolidFillColorMask
+import io
+import base64
+import os
+import uuid
 import requests
+import traceback
 from flask_cors import CORS
+from qrcode.image.styledpil import StyledPilImage
+from qrcode.image.styles.moduledrawers import SquareModuleDrawer, GappedSquareModuleDrawer, CircleModuleDrawer
+from qrcode.image.styles.colormasks import SolidFillColorMask
 
 app = Flask(__name__)
 CORS(app)
 
-MAILGUN_API_KEY = os.environ.get("MAILGUN_API_KEY")
-MAILGUN_DOMAIN = os.environ.get("MAILGUN_DOMAIN")
-FROM_EMAIL = os.environ.get("FROM_EMAIL")
+@app.route("/", methods=["GET"])
+def home():
+    return "QR for US is running!"
 
-# Map dropdown values to actual styles
-BORDER_STYLE_MAP = {
-    "Square": SquareModuleDrawer(),
-    "Rounded": RoundedModuleDrawer(),
-    "Circle": GappedSquareModuleDrawer()
-}
-
-CORNER_STYLE_MAP = {
-    "Standard": SquareModuleDrawer(),
-    "Rounded": RoundedModuleDrawer(),
-    "Framed": GappedSquareModuleDrawer()
-}
-
-@app.route('/generate_qr', methods=['POST'])
+@app.route("/generate_qr", methods=["POST"])
 def generate_qr():
-    data = request.json
-    name = data.get("name")
-    email = data.get("email")
-    destination = data.get("destination")
+    try:
+        data = request.get_json()
+        print("📦 Raw incoming data:", data)
 
-    # Shape and color options
-    border_style_key = data.get("border", "Square")
-    corner_style_key = data.get("corner", "Standard")
-    border_color = data.get("border_color", "black")
-    corner_color = data.get("corner_color", "black")
-    center_color = data.get("center_color", "black")
-    data_color = data.get("data_color", "black")
+        fields = {field['label'].strip().lower(): field['value'] for field in data.get("data", {}).get("fields", [])}
 
-    # Determine which shapes to use
-    border_drawer = BORDER_STYLE_MAP.get(border_style_key, SquareModuleDrawer())
-    corner_drawer = CORNER_STYLE_MAP.get(corner_style_key, SquareModuleDrawer())
+        name = fields.get("first name", "QR User")
+        email = fields.get("email address")
+        destination = fields.get("where should your qr code point (website/url)", "https://qrforus.com")
+        qr_type = fields.get("what type of qr would you like?", ["standard"])[0] if isinstance(fields.get("what type of qr would you like?"), list) else "standard"
+        color = fields.get("data modules color (hex# or named color)", "black")
+        shape = fields.get("what border style would you like?", ["square"])[0] if isinstance(fields.get("what border style would you like?"), list) else "square"
+        logo = None  # Placeholder for future use
 
-    qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_H)
-    qr.add_data(destination)
-    qr.make(fit=True)
+        print(f"🧾 Parsed - name: {name}, email: {email}, destination: {destination}, color: {color}, shape: {shape}")
 
-    img = qr.make_image(image_factory=StyledPilImage,
-                        module_drawer=border_drawer,
-                        color_mask=SolidFillColorMask(
-                            back_color="white",
-                            front_color=data_color),
-                        eye_drawer=corner_drawer)
-
-    buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
-    buffer.seek(0)
-    encoded_img = base64.b64encode(buffer.read()).decode("utf-8")
-
-    subject = "Your Custom QR Code is Ready!"
-    html_content = f"""
-<p>Hi {name},</p>
-<p>Your QR Code is ready:</p>
-<p><img src="data:image/png;base64,{encoded_img}" alt="QR Code" /></p>
-<p><a href="https://qrforus.com/do-over?id=placeholder">Click here to Do Over</a></p>
-<hr>
-<p><strong>How to use:</strong></p>
-<ul>
-  <li><strong>Scan or Click:</strong> This QR code links to the destination you provided: <a href="{destination}">{destination}</a></li>
-  <li><strong>Print:</strong> Right-click and save the QR image to print or share</li>
-  <li><strong>Customization:</strong> You may request up to 2 Do Overs within 24 hours</li>
-</ul>
-<p>This QR will be retained for 30 days. If you purchased a subscription, it will remain as long as your plan is active.</p>
-<p>Questions? Contact us at <a href="mailto:support@qrforus.com">support@qrforus.com</a></p>
-""".format(name=name, encoded_img=encoded_img, destination=destination)
-
-    mailgun_url = f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages"
-    response = requests.post(
-        mailgun_url,
-        auth=("api", MAILGUN_API_KEY),
-        data={
-            "from": FROM_EMAIL,
-            "to": [email],
-            "subject": subject,
-            "html": html_content
+        shape_map = {
+            "square": SquareModuleDrawer(),
+            "gapped": GappedSquareModuleDrawer(),
+            "circle": CircleModuleDrawer()
         }
-    )
 
-    return jsonify({"message": "QR code generated and email sent", "mailgun_response": response.text})
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_H,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(destination)
+        qr.make(fit=True)
+
+        img = qr.make_image(
+            image_factory=StyledPilImage,
+            module_drawer=shape_map.get(shape, SquareModuleDrawer()),
+            color_mask=SolidFillColorMask(back_color="white", front_color=color)
+        ).convert("RGB")
+
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        img_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+        qr_id = str(uuid.uuid4())[:8]
+        do_over_link = f"https://qrforus.com/do-over?id={qr_id}"
+
+        MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
+        MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")
+        FROM_EMAIL = os.getenv("FROM_EMAIL")
+
+        print(f"🔐 ENV - API Key Present: {bool(MAILGUN_API_KEY)}, Domain: {MAILGUN_DOMAIN}, From: {FROM_EMAIL}, To: {email}")
+
+        if MAILGUN_API_KEY and MAILGUN_DOMAIN and FROM_EMAIL and email:
+            try:
+                html_body = (
+                    f"<p>Hi {name},</p>"
+                    f"<p>Your QR Code is ready:</p>"
+                    f"<p><img src='data:image/png;base64,{img_str}' alt='QR Code' /></p>"
+                    f"<p><a href='{do_over_link}'>Click here to Do Over</a></p>"
+                    f"<p>Thanks for using <strong>QR for US</strong> — your simple way to tell a story or share a link through a personalized code.</p>"
+                )
+                print("📧 Email HTML:", html_body)
+
+                response = requests.post(
+                    f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
+                    auth=("api", MAILGUN_API_KEY),
+                    data={
+                        "from": FROM_EMAIL,
+                        "to": email,
+                        "subject": "Your QR Code is Ready",
+                        "html": html_body
+                    }
+                )
+                print("📤 Mailgun response:", response.status_code, response.text)
+            except Exception as e:
+                print("❌ Exception while sending email:")
+                traceback.print_exc()
+
+        return jsonify({
+            "message": "QR created",
+            "clickable_image": f"data:image/png;base64,{img_str}",
+            "do_over_link": do_over_link
+        })
+
+    except Exception as err:
+        print("🔥 Top-level error caught:")
+        traceback.print_exc()
+        return jsonify({"error": str(err)}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
