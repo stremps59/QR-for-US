@@ -17,23 +17,24 @@ def home():
 
 @app.route("/generate_qr", methods=["POST"])
 def generate_qr():
-    print("🔔 /generate_qr endpoint hit", flush=True)
-
     data = request.get_json()
-    print(f"📦 Raw incoming data: {data}", flush=True)
+    fields = data.get("data", {}).get("fields", [])
 
-    # Extract fields
-    name = data.get("name")
-    email = data.get("email")
-    destination = data.get("destination")
-    qr_type = data.get("qr_type", "standard")
-    color = data.get("color", "black")
-    shape = data.get("shape", "square")
-    logo = data.get("logo", None)
+    def get_field(label):
+        for field in fields:
+            if field.get("label") == label:
+                return field.get("value")
+        return None
 
-    print(f"🧾 Parsed - name: {name}, email: {email}, destination: {destination}", flush=True)
+    name = get_field("First Name")
+    email = get_field("Email address")
+    destination = get_field("Where should your QR Code point (Website/URL)")
 
-    # Generate QR
+    qr_type = get_field("What type of QR would you like?") or "standard"
+    color = get_field("Data modules color (HEX# or Named color)") or "black"
+    shape = get_field("What border style would you like?") or "square"
+    logo = None  # Optional logo handling can be added later
+
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_H,
@@ -52,15 +53,12 @@ def generate_qr():
     qr_id = str(uuid.uuid4())[:8]
     do_over_link = f"https://qrforus.com/do-over?id={qr_id}"
 
-    # Email setup
     MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
     MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")
     FROM_EMAIL = os.getenv("FROM_EMAIL")
 
-    print(f"🔐 ENV - API Key Present: {bool(MAILGUN_API_KEY)}, Domain: {MAILGUN_DOMAIN}, From: {FROM_EMAIL}", flush=True)
-
-    if MAILGUN_API_KEY and MAILGUN_DOMAIN and FROM_EMAIL:
-        response = requests.post(
+    if MAILGUN_API_KEY and MAILGUN_DOMAIN and FROM_EMAIL and email:
+        requests.post(
             f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
             auth=("api", MAILGUN_API_KEY),
             data={
@@ -70,9 +68,6 @@ def generate_qr():
                 "html": f"<p>Hi {name},</p><p>Your QR Code is ready:</p><img src='data:image/png;base64,{img_str}' /><p><a href='{do_over_link}'>Click here to Do Over</a></p>"
             }
         )
-        print(f"📤 Mailgun response: {response.status_code} {response.text}", flush=True)
-    else:
-        print("🚨 Missing Mailgun ENV vars; skipping email send", flush=True)
 
     return jsonify({
         "message": "QR created",
