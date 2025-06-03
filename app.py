@@ -17,29 +17,23 @@ def home():
 
 @app.route("/generate_qr", methods=["POST"])
 def generate_qr():
-    print("🔔 /generate_qr endpoint hit")
     data = request.get_json()
     print("📦 Raw incoming data:", data)
 
     fields = {field['label']: field['value'] for field in data.get("data", {}).get("fields", [])}
 
-    # Extract required fields with proper dropdown handling
+    # Extract required fields
     name = fields.get("First Name", "QR User")
     email = fields.get("Email address")
     destination = fields.get("Where should your QR Code point (Website/URL)")
-
-    qr_type_raw = fields.get("What type of QR would you like?", "standard")
-    qr_type = qr_type_raw[0] if isinstance(qr_type_raw, list) and qr_type_raw else qr_type_raw or "standard"
-
-    shape_raw = fields.get("What border style would you like?", "square")
-    shape = shape_raw[0] if isinstance(shape_raw, list) and shape_raw else shape_raw or "square"
-
+    qr_type = fields.get("What type of QR would you like?", ["standard"])[0] if isinstance(fields.get("What type of QR would you like?"), list) else "standard"
     color = fields.get("Data modules color (HEX# or Named color)", "black")
+    shape = fields.get("What border style would you like?", ["square"])[0] if isinstance(fields.get("What border style would you like?"), list) else "square"
     logo = None  # Optional image upload
 
     print(f"🧾 Parsed - name: {name}, email: {email}, destination: {destination}")
 
-    # Generate QR code
+    # Generate QR
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_H,
