@@ -18,30 +18,29 @@ def home():
 @app.route("/generate_qr", methods=["POST"])
 def generate_qr():
     data = request.get_json()
-    fields = data.get("data", {}).get("fields", [])
+    print("📦 Raw incoming data:", data)
 
-    def get_field(label):
-        for field in fields:
-            if field.get("label") == label:
-                return field.get("value")
-        return None
+    fields = {field['label']: field['value'] for field in data.get("data", {}).get("fields", [])}
 
-    name = get_field("First Name")
-    email = get_field("Email address")
-    destination = get_field("Where should your QR Code point (Website/URL)")
+    # Extract required fields
+    name = fields.get("First Name", "QR User")
+    email = fields.get("Email address")
+    destination = fields.get("Where should your QR Code point (Website/URL)")
+    qr_type = fields.get("What type of QR would you like?", ["standard"])[0] if isinstance(fields.get("What type of QR would you like?"), list) else "standard"
+    color = fields.get("Data modules color (HEX# or Named color)", "black")
+    shape = fields.get("What border style would you like?", ["square"])[0] if isinstance(fields.get("What border style would you like?"), list) else "square"
+    logo = None  # Optional image upload
 
-    qr_type = get_field("What type of QR would you like?") or "standard"
-    color = get_field("Data modules color (HEX# or Named color)") or "black"
-    shape = get_field("What border style would you like?") or "square"
-    logo = None  # Optional logo handling can be added later
+    print(f"🧾 Parsed - name: {name}, email: {email}, destination: {destination}")
 
+    # Generate QR
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_H,
         box_size=10,
         border=4,
     )
-    qr.add_data(destination)
+    qr.add_data(destination or "https://qrforus.com")
     qr.make(fit=True)
 
     img = qr.make_image(fill_color=color, back_color="white").convert("RGB")
@@ -57,8 +56,10 @@ def generate_qr():
     MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")
     FROM_EMAIL = os.getenv("FROM_EMAIL")
 
+    print(f"🔐 ENV - API Key Present: {bool(MAILGUN_API_KEY)}, Domain: {MAILGUN_DOMAIN}, From: {FROM_EMAIL}")
+
     if MAILGUN_API_KEY and MAILGUN_DOMAIN and FROM_EMAIL and email:
-        requests.post(
+        response = requests.post(
             f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
             auth=("api", MAILGUN_API_KEY),
             data={
@@ -68,6 +69,7 @@ def generate_qr():
                 "html": f"<p>Hi {name},</p><p>Your QR Code is ready:</p><img src='data:image/png;base64,{img_str}' /><p><a href='{do_over_link}'>Click here to Do Over</a></p>"
             }
         )
+        print("📤 Mailgun response:", response.status_code, response.text)
 
     return jsonify({
         "message": "QR created",
