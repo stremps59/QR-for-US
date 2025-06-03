@@ -27,13 +27,22 @@ def generate_qr():
         name = fields.get("first name", "QR User")
         email = fields.get("email address")
         destination = fields.get("where should your qr code point (website/url)")
-        qr_type = fields.get("what type of qr would you like?", ["standard"])[0] if isinstance(fields.get("what type of qr would you like?"), list) else "standard"
+        qr_type = fields.get("what type of qr would you like?", ["standard"])
+        if isinstance(qr_type, list):
+            qr_type = qr_type[0]
+        else:
+            qr_type = "standard"
         color = fields.get("data modules color (hex# or named color)", "black")
-        shape = fields.get("what border style would you like?", ["square"])[0] if isinstance(fields.get("what border style would you like?"), list) else "square"
-        logo = None
+        shape = fields.get("what border style would you like?", ["square"])
+        if isinstance(shape, list):
+            shape = shape[0]
+        else:
+            shape = "square"
 
+        logo = None  # optional upload
         print(f"🧾 Parsed - name: {name}, email: {email}, destination: {destination}")
 
+        # QR generation
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_H,
@@ -42,7 +51,6 @@ def generate_qr():
         )
         qr.add_data(destination or "https://qrforus.com")
         qr.make(fit=True)
-
         img = qr.make_image(fill_color=color, back_color="white").convert("RGB")
 
         buffer = io.BytesIO()
@@ -67,7 +75,6 @@ def generate_qr():
                 <p><a href="{do_over_link}">Click here to Do Over</a></p>
                 """
                 print("📧 Email HTML:", html_body)
-                print("📨 Attempting to send email via Mailgun...")
 
                 response = requests.post(
                     f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
