@@ -26,10 +26,15 @@ def generate_qr():
     name = fields.get("First Name", "QR User")
     email = fields.get("Email address")
     destination = fields.get("Where should your QR Code point (Website/URL)")
-    qr_type = fields.get("What type of QR would you like?", ["standard"])[0] if isinstance(fields.get("What type of QR would you like?"), list) else "standard"
+
+    qr_type_value = fields.get("What type of QR would you like?")
+    qr_type = qr_type_value[0] if isinstance(qr_type_value, list) else (qr_type_value or "standard")
+
+    shape_value = fields.get("What border style would you like?")
+    shape = shape_value[0] if isinstance(shape_value, list) else (shape_value or "square")
+
     color = fields.get("Data modules color (HEX# or Named color)", "black")
-    shape = fields.get("What border style would you like?", ["square"])[0] if isinstance(fields.get("What border style would you like?"), list) else "square"
-    logo = None  # Optional image upload
+    logo = None  # Placeholder for image upload
 
     print(f"🧾 Parsed - name: {name}, email: {email}, destination: {destination}")
 
