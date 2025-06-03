@@ -1,102 +1,97 @@
-
-import os
-import base64
-import io
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import qrcode
+import os
+import uuid
 from PIL import Image
 import requests
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
+from io import BytesIO
+import base64
 import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 
 app = Flask(__name__)
 CORS(app)
 
-def generate_qr(data, color="black", center_image=None):
+MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
+MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")
+SENDER_EMAIL = "QR for US <qrforus@{}>".format(MAILGUN_DOMAIN)
+
+@app.route("/generate_qr", methods=["POST"])
+def generate_qr():
+    data = request.json
+
+    url = data.get("url")
+    email = data.get("email")
+    filename = f"{uuid.uuid4()}.png"
+
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_H,
         box_size=10,
         border=4,
     )
-    qr.add_data(data)
+
+    qr.add_data(url)
     qr.make(fit=True)
 
-    img = qr.make_image(fill_color=color, back_color="white").convert("RGB")
+    img = qr.make_image(fill_color="black", back_color="white").convert('RGB')
 
-    if center_image:
-        try:
-            logo = Image.open(io.BytesIO(requests.get(center_image).content))
-            basewidth = 100
-            wpercent = basewidth / float(logo.size[0])
-            hsize = int((float(logo.size[1]) * float(wpercent)))
-            logo = logo.resize((basewidth, hsize), Image.ANTIALIAS)
-            pos = ((img.size[0] - logo.size[0]) // 2, (img.size[1] - logo.size[1]) // 2)
-            img.paste(logo, pos, mask=logo if logo.mode == 'RGBA' else None)
-        except Exception as e:
-            print(f"Error processing center image: {e}")
+    img_path = f"/tmp/{filename}"
+    img.save(img_path)
 
-    return img
+    if email:
+        send_email(email, img_path, filename, url)
 
-@app.route("/generate_qr", methods=["POST"])
-def generate_qr_code():
-    data = request.json
-    qr_data = data.get("data")
-    email = data.get("email")
-    color = data.get("color", "black")
-    center_image = data.get("center_image")
+    return jsonify({"message": "QR code generated", "filename": filename})
 
-    if not qr_data or not email:
-        return jsonify({"error": "Missing data or email"}), 400
+def send_email(recipient_email, attachment_path, filename, do_over_url):
+    sender_email = SENDER_EMAIL
 
-    img = generate_qr(qr_data, color=color, center_image=center_image)
+    message = MIMEMultipart()
+    message["From"] = sender_email
+    message["To"] = recipient_email
+    message["Subject"] = "Your QR for US™ code is ready!"
 
-    buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
-    buffer.seek(0)
-    img_bytes = buffer.read()
+    body = MIMEText("""Thanks for using QR for US™!
 
-    try:
-        send_email(email, img_bytes)
-        return jsonify({"message": "QR code generated and sent via email"}), 200
-    except Exception as e:
-        print(f"Error sending email: {e}")
-        return jsonify({"error": str(e)}), 500
+Your QR code is attached and ready to use. You can:
+• Print it
+• Share it
+• Link it anywhere online
 
-def send_email(recipient, img_bytes):
-    mailgun_domain = os.getenv("MAILGUN_DOMAIN")
-    mailgun_api_key = os.getenv("MAILGUN_API_KEY")
+Need to make a change?
+You can request a “Do Over” here:
+{}
 
-    if not mailgun_domain or not mailgun_api_key:
-        raise ValueError("Mailgun configuration is missing.")
-
-    response = requests.post(
-        f"https://api.mailgun.net/v3/{mailgun_domain}/messages",
-        auth=("api", mailgun_api_key),
-        files={"attachment": ("qr_code.png", img_bytes)},
-        data={
-            "from": f"QR for US <no-reply@{mailgun_domain}>",
-            "to": [recipient],
-            "subject": "Your QR Code from QR for US™",
-            "text": "Thanks for using QR for US™! Your QR code is attached and ready to use.
-
-To scan: print or share the image.
-To reuse or reprint: this code will stay active for 30 days.
-
-Need changes? You can request a Do Over within 24 hours.
+Your code will be stored for 30 days (or longer with a subscription).
 
 Thanks again,
-QR for US™"
-        },
+QR for US™
+""".format(do_over_url), "plain")
+
+    message.attach(body)
+
+    with open(attachment_path, "rb") as f:
+        part = MIMEApplication(f.read(), Name=filename)
+        part['Content-Disposition'] = f'attachment; filename="{filename}"'
+        message.attach(part)
+
+    response = requests.post(
+        f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
+        auth=("api", MAILGUN_API_KEY),
+        files=[("attachment", (filename, open(attachment_path, "rb").read()))],
+        data={
+            "from": sender_email,
+            "to": recipient_email,
+            "subject": "Your QR for US™ code is ready!",
+            "text": body.get_payload()
+        }
     )
 
-    if response.status_code != 200:
-        raise Exception(f"Mailgun API error: {response.text}")
+    print("Mailgun response:", response.status_code, response.text)
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(debug=True, host="0.0.0.0", port=5000)
