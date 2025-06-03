@@ -1,3 +1,4 @@
+
 from flask import Flask, request, jsonify
 import qrcode
 import io
@@ -23,18 +24,16 @@ def generate_qr():
 
         fields = {field['label'].strip().lower(): field['value'] for field in data.get("data", {}).get("fields", [])}
 
-        # Extract required fields using lowercase keys
         name = fields.get("first name", "QR User")
         email = fields.get("email address")
         destination = fields.get("where should your qr code point (website/url)")
         qr_type = fields.get("what type of qr would you like?", ["standard"])[0] if isinstance(fields.get("what type of qr would you like?"), list) else "standard"
         color = fields.get("data modules color (hex# or named color)", "black")
         shape = fields.get("what border style would you like?", ["square"])[0] if isinstance(fields.get("what border style would you like?"), list) else "square"
-        logo = None  # Optional image upload
+        logo = None
 
         print(f"🧾 Parsed - name: {name}, email: {email}, destination: {destination}")
 
-        # Generate QR
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_H,
@@ -68,6 +67,7 @@ def generate_qr():
                 <p><a href="{do_over_link}">Click here to Do Over</a></p>
                 """
                 print("📧 Email HTML:", html_body)
+                print("📨 Attempting to send email via Mailgun...")
 
                 response = requests.post(
                     f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
