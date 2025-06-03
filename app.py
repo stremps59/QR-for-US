@@ -49,10 +49,16 @@ def generate_qr():
     qr_id = str(uuid.uuid4())[:8]
     do_over_link = f"https://qrforus.com/do-over?id={qr_id}"
 
-    # Email via Mailgun
+    # Email via Mailgun with logging
     MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
     MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")
     FROM_EMAIL = os.getenv("FROM_EMAIL")
+
+    print("📨 Preparing to send email...")
+    print("MAILGUN_API_KEY exists:", bool(MAILGUN_API_KEY))
+    print("MAILGUN_DOMAIN:", MAILGUN_DOMAIN)
+    print("FROM_EMAIL:", FROM_EMAIL)
+    print("To email:", email)
 
     if MAILGUN_API_KEY and MAILGUN_DOMAIN and FROM_EMAIL:
         response = requests.post(
@@ -65,7 +71,10 @@ def generate_qr():
                 "html": f"<p>Hi {name},</p><p>Your QR Code is ready:</p><img src='data:image/png;base64,{img_str}' /><p><a href='{do_over_link}'>Click here to Do Over</a></p>"
             }
         )
-        print("📬 Mailgun response:", response.status_code, response.text)
+        print("📬 Mailgun status code:", response.status_code)
+        print("📬 Mailgun response text:", response.text)
+    else:
+        print("🚫 Mailgun environment variables not fully configured")
 
     return jsonify({
         "message": "QR created",
