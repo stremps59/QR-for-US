@@ -22,15 +22,15 @@ def generate_qr():
         data = request.get_json()
         print("📦 Raw incoming data:", data)
 
-        fields = {field['label']: field['value'] for field in data.get("data", {}).get("fields", [])}
+        fields = {field['label'].strip().lower(): field['value'] for field in data.get("data", {}).get("fields", [])}
 
-        # Extract required fields
-        name = fields.get("First Name", "QR User")
-        email = fields.get("Email address")
-        destination = fields.get("Where should your QR Code point (Website/URL)")
-        qr_type = fields.get("What type of QR would you like?", ["standard"])[0] if isinstance(fields.get("What type of QR would you like?"), list) else "standard"
-        color = fields.get("Data modules color (HEX# or Named color)", "black")
-        shape = fields.get("What border style would you like?", ["square"])[0] if isinstance(fields.get("What border style would you like?"), list) else "square"
+        # Extract required fields using lowercase keys
+        name = fields.get("first name", "QR User")
+        email = fields.get("email address")
+        destination = fields.get("where should your qr code point (website/url)")
+        qr_type = fields.get("what type of qr would you like?", ["standard"])[0] if isinstance(fields.get("what type of qr would you like?"), list) else "standard"
+        color = fields.get("data modules color (hex# or named color)", "black")
+        shape = fields.get("what border style would you like?", ["square"])[0] if isinstance(fields.get("what border style would you like?"), list) else "square"
         logo = None  # Optional image upload
 
         print(f"🧾 Parsed - name: {name}, email: {email}, destination: {destination}")
@@ -62,6 +62,14 @@ def generate_qr():
 
         if MAILGUN_API_KEY and MAILGUN_DOMAIN and FROM_EMAIL and email:
             try:
+                html_body = f"""
+                <p>Hi {name},</p>
+                <p>Your QR Code is ready:</p>
+                <p><img src="data:image/png;base64,{img_str}" alt="QR Code" /></p>
+                <p><a href="{do_over_link}">Click here to Do Over</a></p>
+                """
+                print("📧 Email HTML:", html_body)
+
                 response = requests.post(
                     f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
                     auth=("api", MAILGUN_API_KEY),
@@ -69,7 +77,7 @@ def generate_qr():
                         "from": FROM_EMAIL,
                         "to": email,
                         "subject": "Your QR Code is Ready",
-                        "html": f"<p>Hi {name},</p><p>Your QR Code is ready:</p><img src='data:image/png;base64,{img_str}' /><p><a href='{do_over_link}'>Click here to Do Over</a></p>"
+                        "html": html_body
                     }
                 )
                 print("📤 Mailgun response:", response.status_code, response.text)
