@@ -1,80 +1,112 @@
-
-import os
-import io
-import traceback
 from flask import Flask, request, jsonify
-from flask_cors import CORS
 import qrcode
-from qrcode.image.pil import PilImage
-from PIL import Image
+import io
+import base64
+import os
+import uuid
 import requests
+import traceback
+from flask_cors import CORS
+from qrcode.image.styledpil import StyledPilImage
+from qrcode.image.styles.moduledrawers import SquareModuleDrawer, GappedSquareModuleDrawer, CircleModuleDrawer
+from qrcode.image.styles.colormasks import SolidFillColorMask
 
 app = Flask(__name__)
 CORS(app)
 
-MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
-MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")
-FROM_EMAIL = f"QR for US <qrforus@{MAILGUN_DOMAIN}>"
-
-def generate_qr_code(data, fill_color="black", back_color="white"):
-    qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_H)
-    qr.add_data(data)
-    qr.make(fit=True)
-    img = qr.make_image(image_factory=PilImage, fill_color=fill_color, back_color=back_color)
-    return img
-
-def send_email(recipient, subject, body, qr_bytes):
-    print("send_email triggered")
-    print(f"Sending email to: {recipient}")
-    try:
-        response = requests.post(
-            f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
-            auth=("api", MAILGUN_API_KEY),
-            files=[("attachment", ("qr_code.png", qr_bytes, "image/png"))],
-            data={
-                "from": FROM_EMAIL,
-                "to": recipient,
-                "subject": subject,
-                "text": body
-            }
-        )
-        print(f"Mailgun response status: {response.status_code}")
-        print(f"Mailgun response body: {response.text}")
-    except Exception as e:
-        print("Error sending email:", str(e))
-        traceback.print_exc()
+@app.route("/", methods=["GET"])
+def home():
+    return "QR for US is running!"
 
 @app.route("/generate_qr", methods=["POST"])
 def generate_qr():
     try:
-        data = request.json
-        print("Received data:", data)
+        data = request.get_json()
+        print("📦 Raw incoming data:", data)
 
-        qr_data = data.get("qr_data")
-        recipient_email = data.get("email")
-        fill_color = data.get("color", "black")
-        back_color = data.get("background", "white")
+        fields = {field['label'].strip().lower(): field['value'] for field in data.get("data", {}).get("fields", [])}
 
-        if not qr_data or not recipient_email:
-            return jsonify({"error": "Missing qr_data or email"}), 400
+        name = fields.get("first name", "QR User")
+        email = fields.get("email address")
+        destination = fields.get("where should your qr code point (website/url)", "https://qrforus.com")
+        qr_type = fields.get("what type of qr would you like?", ["standard"])[0] if isinstance(fields.get("what type of qr would you like?"), list) else "standard"
+        color = fields.get("data modules color (hex# or named color)", "black")
+        shape = fields.get("what border style would you like?", ["square"])[0] if isinstance(fields.get("what border style would you like?"), list) else "square"
+        logo = None  # Placeholder for future use
 
-        img = generate_qr_code(qr_data, fill_color, back_color)
-        img_byte_arr = io.BytesIO()
-        img.save(img_byte_arr, format="PNG")
-        img_byte_arr.seek(0)
+        print(f"🧾 Parsed - name: {name}, email: {email}, destination: {destination}, color: {color}, shape: {shape}")
 
-        send_email(
-            recipient=recipient_email,
-            subject="Your QR Code from QR for US",
-            body="Attached is your generated QR code. Scan or click to visit the destination.",
-            qr_bytes=img_byte_arr.read()
+        shape_map = {
+            "square": SquareModuleDrawer(),
+            "gapped": GappedSquareModuleDrawer(),
+            "circle": CircleModuleDrawer()
+        }
+
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_H,
+            box_size=10,
+            border=4,
         )
+        qr.add_data(destination)
+        qr.make(fit=True)
 
-        return jsonify({"message": "QR code generated and email sent successfully"}), 200
-    except Exception as e:
-        print("Error in generate_qr:", str(e))
+        img = qr.make_image(
+            image_factory=StyledPilImage,
+            module_drawer=shape_map.get(shape, SquareModuleDrawer()),
+            color_mask=SolidFillColorMask(back_color="white", front_color=color)
+        ).convert("RGB")
+
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        img_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+        qr_id = str(uuid.uuid4())[:8]
+        do_over_link = f"https://qrforus.com/do-over?id={qr_id}"
+
+        MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
+        MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")
+        FROM_EMAIL = os.getenv("FROM_EMAIL")
+
+        print(f"🔐 ENV - API Key Present: {bool(MAILGUN_API_KEY)}, Domain: {MAILGUN_DOMAIN}, From: {FROM_EMAIL}, To: {email}")
+
+        if MAILGUN_API_KEY and MAILGUN_DOMAIN and FROM_EMAIL and email:
+            try:
+                html_body = (
+                    f"<p>Hi {name},</p>"
+                    f"<p>Your QR Code is ready:</p>"
+                    f"<p><img src='data:image/png;base64,{img_str}' alt='QR Code' /></p>"
+                    f"<p><a href='{do_over_link}'>Click here to Do Over</a></p>"
+                    f"<p>Thanks for using <strong>QR for US</strong> — your simple way to tell a story or share a link through a personalized code.</p>"
+                )
+                print("📧 Email HTML:", html_body)
+
+                response = requests.post(
+                    f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
+                    auth=("api", MAILGUN_API_KEY),
+                    data={
+                        "from": FROM_EMAIL,
+                        "to": email,
+                        "subject": "Your QR Code is Ready",
+                        "html": html_body
+                    }
+                )
+                print("📤 Mailgun response:", response.status_code, response.text)
+            except Exception as e:
+                print("❌ Exception while sending email:")
+                traceback.print_exc()
+
+        return jsonify({
+            "message": "QR created",
+            "clickable_image": f"data:image/png;base64,{img_str}",
+            "do_over_link": do_over_link
+        })
+
+    except Exception as err:
+        print("🔥 Top-level error caught:")
         traceback.print_exc()
-        return jsonify({"error": "Internal server error"}), 500
+        return jsonify({"error": str(err)}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
