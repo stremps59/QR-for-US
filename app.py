@@ -4,6 +4,8 @@ import io
 import uuid
 import base64
 import qrcode
+from PIL import Image
+import os.path
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
@@ -47,6 +49,16 @@ def generate_qr():
         qr.add_data(destination)
         qr.make(fit=True)
         img = qr.make_image(fill_color=data_color, back_color="white").convert("RGB")
+# Optional enhancements: shape and logo image
+        logo_path = get_field("Upload a center image (optional)").strip()
+        if logo_path and os.path.isfile(logo_path):
+            logo = Image.open(logo_path).convert("RGBA")
+            qr_size = img.size[0]
+            factor = 4
+            size = qr_size // factor
+            logo = logo.resize((size, size))
+            pos = ((qr_size - size) // 2, (qr_size - size) // 2)
+            img.paste(logo, pos, mask=logo)
 
         # Convert to bytes
         buffered = io.BytesIO()
