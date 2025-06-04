@@ -27,7 +27,7 @@ def generate_qr():
 destination = next((f['value'] for f in data.get("data", {}).get("fields", []) if 'url' in f['label'].lower() or 'destination' in f['label'].lower()), None)
 if not destination:
     print("❌ Destination URL not found — check field labels or structure.")
-).get("fields", [])}
+.get("fields", [])}
 
         name = fields.get("first name", "QR User")
         email = fields.get("email address")
