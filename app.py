@@ -16,6 +16,13 @@ from PIL import ImageColor
 app = Flask(__name__)
 CORS(app)
 
+def validate_color(color_str, default="black"):
+    try:
+        ImageColor.getrgb(color_str)
+        return color_str
+    except Exception:
+        return default
+
 @app.route("/", methods=["GET"])
 def home():
     return "QR for US is running!"
@@ -32,15 +39,11 @@ def generate_qr():
         email = fields.get("email address")
         destination = fields.get("where should your qr code point (website/url)", "https://qrforus.com")
         qr_type = fields.get("what type of qr would you like?", ["standard"])[0] if isinstance(fields.get("what type of qr would you like?"), list) else "standard"
-        raw_color = fields.get("data modules color (hex# or named color)", "black")
+        color_raw = fields.get("data modules color (hex# or named color)", "black")
         shape = fields.get("what border style would you like?", ["square"])[0] if isinstance(fields.get("what border style would you like?"), list) else "square"
-        logo = None
 
-        try:
-            color = ImageColor.getrgb(raw_color)
-        except ValueError:
-            print(f"⚠️ Invalid color input: {raw_color}. Defaulting to black.")
-            color = (0, 0, 0)
+        color = validate_color(color_raw)
+        logo = None  # Placeholder for future use
 
         print(f"🧾 Parsed - name: {name}, email: {email}, destination: {destination}, color: {color}, shape: {shape}")
 
