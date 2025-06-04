@@ -1,106 +1,106 @@
 
 import os
-import io
-import uuid
-import base64
-import qrcode
+import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import requests
+import qrcode
+from qrcode.image.styledpil import StyledPilImage
+from qrcode.image.styles.colormasks import SolidFillColorMask
+from qrcode.image.styles.moduledrawers import RoundedModuleDrawer, CircleModuleDrawer, SquareModuleDrawer
+from qrcode.image.styles.eye import RoundedEyeDrawer, SquareEyeDrawer, HorizontalBarsEyeDrawer
+from PIL import Image, ImageColor
+from io import BytesIO
+import base64
+import logging
 
 app = Flask(__name__)
 CORS(app)
+logging.basicConfig(level=logging.INFO)
 
-MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
-MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")
-MAILGUN_FROM = os.getenv("MAILGUN_FROM", f"mailgun@{MAILGUN_DOMAIN}")
-
-@app.route("/")
-def home():
-    return "QR for US backend is running"
+def parse_color(value, fallback):
+    try:
+        return ImageColor.getrgb(value)
+    except:
+        return ImageColor.getrgb(fallback)
 
 @app.route("/generate_qr", methods=["POST"])
 def generate_qr():
     try:
-        data = request.json or {}
+        data = request.get_json()
+        logging.info(f"Raw incoming data: {data}")
         fields = data.get("data", {}).get("fields", [])
 
-        # Extract field values with fallback
-        def get_field(label):
-            for field in fields:
-                if isinstance(field, dict) and field.get("label", "").strip().lower() == label.strip().lower():
-                    return field.get("value", "")
-            return ""
+        def get_field(label, default=""):
+            for f in fields:
+                if f.get("label", "").strip().lower() == label.strip().lower():
+                    return f.get("value", default)
+            return default
 
-        first_name = get_field("First Name")
-        email = get_field("Email address")
-        destination = get_field("Where should your QR Code point (Website/URL)?") or "https://qrforus.com"
+        recipient = get_field("Email address")
+        destination = get_field("Where should your QR Code point (Website/URL)?", "https://qrforus.com").strip()
 
-        # Set default QR styling colors
-        border_color = get_field("Border Color (HEX# or Named color)") or "black"
-        dot_color = get_field("Corner finder dots color (HEX# or Named color)") or "black"
-        center_color = get_field("Center image color (if no image uploaded; HEX# or Named color)") or "black"
-        data_color = get_field("Data modules color (HEX# or Named color)") or "black"
+        border_color = parse_color(get_field("Border Color (HEX# or Named color)", "black"), "black")
+        finder_color = parse_color(get_field("Corner finder dots color (HEX# or Named color)", "black"), "black")
+        center_color = parse_color(get_field("Center image color (if no image uploaded; HEX# or Named color)", "black"), "black")
+        data_color = parse_color(get_field("Data modules color (HEX# or Named color)", "black"), "black")
 
-        # Generate QR
         qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_H)
         qr.add_data(destination)
         qr.make(fit=True)
-        img = qr.make_image(fill_color=data_color, back_color="white").convert("RGB")
 
-        # Convert to bytes
-        buffered = io.BytesIO()
-        img.save(buffered, format="PNG")
-        img_base64 = base64.b64encode(buffered.getvalue()).decode()
-
-        # Compose HTML email
-        html_body = f'''
-        <p>Hi {first_name},</p>
-        <p>Your QR Code is ready!</p>
-        <p>It's attached to this email as a PNG image -- ready to use in print, online, and everywhere in between.</p>
-        <p>You can use this single code in three powerful ways:</p>
-        <ol>
-          <li><strong>Scanable</strong><br>
-          Print or display the image. It can be scanned instantly by any smartphone camera -- no app required.<br>
-          Use it on resumes, posters, name badges, pet tags, product packaging, signs, and more.</li>
-          <li><strong>Clickable</strong><br>
-          Want to use it in a document or email? Easy.<br>
-          - Insert the PNG image anywhere.<br>
-          - Right-click it and choose "Add Hyperlink" or "Insert Link."<br>
-          - Paste your destination URL.<br>
-          That's it -- now it's clickable too.</li>
-          <li><strong>Saveable</strong><br>
-          Right-click the image and select "Save As" to store it.<br>
-          Use it again whenever and wherever you need.</li>
-        </ol>
-        <p>Need to change the color, shape, or style?<br>
-        Click below to regenerate your QR (up to 2 times within 24 hours):<br>
-        <a href="https://qrforus.com/do-over?id={uuid.uuid4().hex[:8]}">https://qrforus.com/do-over?id={uuid.uuid4().hex[:8]}</a></p>
-        <p>QR for US™ connects your stories, profiles, and passions to the world -- one QR at a time.<br>
-        This code is your bridge between digital life and real-life moments.</p>
-        <p>Have questions or want help with creative ideas? Reach us at qrforus1@gmail.com</p>
-        <hr>
-        <p><strong>QR for US™<br>
-        Scan it. Click it. Share your story.<br>
-        <a href="https://qrforus.com">https://qrforus.com</a></strong></p>
-        '''
-
-        response = requests.post(
-            f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
-            auth=("api", MAILGUN_API_KEY),
-            files={"attachment": ("qr.png", buffered.getvalue())},
-            data={
-                "from": MAILGUN_FROM,
-                "to": email,
-                "subject": "Your QR for US™ code is ready to use!",
-                "html": html_body
-            },
+        img = qr.make_image(
+            image_factory=StyledPilImage,
+            color_mask=SolidFillColorMask(
+                back_color="white",
+                front_color=data_color,
+                center_color=center_color,
+                top_left_color=finder_color,
+                top_right_color=finder_color,
+                bottom_left_color=finder_color
+            ),
+            module_drawer=SquareModuleDrawer(),
+            eye_drawer=SquareEyeDrawer()
         )
 
-        return jsonify({"message": "QR code sent", "mailgun": response.text})
+        buffered = BytesIO()
+        img.save(buffered, format="PNG")
+        img_bytes = buffered.getvalue()
+        encoded_img = base64.b64encode(img_bytes).decode("utf-8")
+
+        mailgun_domain = os.getenv("MAILGUN_DOMAIN")
+        mailgun_api_key = os.getenv("MAILGUN_API_KEY")
+
+        if not mailgun_domain or not mailgun_api_key:
+            raise Exception("Missing Mailgun environment variables")
+
+        mailgun_url = f"https://api.mailgun.net/v3/{mailgun_domain}/messages"
+
+        response = requests.post(
+            mailgun_url,
+            auth=("api", mailgun_api_key),
+            files=[("attachment", ("qr.png", img_bytes, "image/png"))],
+            data={
+                "from": f"QR for US <mailgun@{mailgun_domain}>",
+                "to": recipient,
+                "subject": "Your QR for US™ code is ready to use!",
+                "html": (
+                    f"<p>Hi {get_field('First Name', 'there')},</p>"
+                    f"<p>Your custom QR for US™ code is <strong>ready to use</strong>.</p>"
+                    f"<img src='cid:qr.png' alt='Your QR Code' style='width:200px;height:200px;' />"
+                    f"<p>This one QR can be scanned, clicked, saved, or shared — on phones, flyers, websites, "
+                    f"business cards, and anywhere else people connect with your story.</p>"
+                    f"<p>Thanks for using QR for US™ — we connect real-life moments to the digital world.</p>"
+                    f"<p>Scan It. Click It. Share your story.<br><a href='https://qrforus.com'>https://qrforus.com</a></p>"
+                )
+            }
+        )
+
+        logging.info(f"📤 Mailgun response: {response.status_code} {response.text}")
+        return jsonify({"success": True, "email_response": response.text})
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error("Error during QR code generation or email sending.", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    app.run(debug=False, host="0.0.0.0", port=10000)
