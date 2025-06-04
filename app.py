@@ -36,8 +36,8 @@ def generate_qr():
         qr.add_data(data["url"])
         qr.make(fit=True)
 
-        fill_color = data.get("fill_color", "#000000")
-        back_color = data.get("back_color", "#FFFFFF")
+        fill_rgb = ImageColor.getrgb(data.get("fill_color", "#000000"))
+        back_rgb = ImageColor.getrgb(data.get("back_color", "#FFFFFF"))
 
         try:
             fill_rgb = ImageColor.getrgb(fill_color)
