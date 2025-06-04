@@ -7,7 +7,6 @@ from flask_cors import CORS
 import qrcode
 from qrcode.image.styledpil import StyledPilImage
 from qrcode.image.styles.moduledrawers import RoundedModuleDrawer, GappedSquareModuleDrawer, SquareModuleDrawer
-from qrcode.image.styles.colordrawers import SolidFillColorMask
 from PIL import Image
 import requests
 
