@@ -20,6 +20,9 @@ def home():
 def generate_qr():
     try:
         data = request.get_json()
+    pass
+except Exception as e:
+    print('Error:', e)
         print("📦 Raw incoming data:", data)
 
         fields = {field['label'].strip().lower(): field['value'] for field in data.get("data", {}).get("fields", [])}
@@ -27,7 +30,7 @@ def generate_qr():
 destination = next((f['value'] for f in data.get("data", {}).get("fields", []) if 'url' in f['label'].lower() or 'destination' in f['label'].lower()), None)
 if not destination:
     print("❌ Destination URL not found — check field labels or structure.")
-.get("fields", [])}
+        fields = {field["label"].strip().lower(): field["value"] for field in data.get("data", {}).get("fields", [])}
 
         name = fields.get("first name", "QR User")
         email = fields.get("email address")
@@ -74,6 +77,9 @@ if not destination:
         if MAILGUN_API_KEY and MAILGUN_DOMAIN and FROM_EMAIL and email:
             try:
                 html_body = f"""
+    pass
+except Exception as e:
+    print('Error:', e)
 <p>Hi {name},</p>
 <p>Your QR Code is ready!</p>
 <p>It's attached to this email as a PNG image — ready to use in print, online, and everywhere in between.</p>
