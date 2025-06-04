@@ -4,7 +4,6 @@ from flask_cors import CORS
 import qrcode
 from qrcode.image.styledpil import StyledPilImage
 from qrcode.image.styles.moduledrawers import RoundedModuleDrawer, SquareModuleDrawer
-from qrcode.image.styles.colormasks import SolidFillColorMask
 from PIL import Image, ImageColor
 import io
 import os
@@ -26,7 +25,7 @@ def index():
 def generate_qr():
     try:
         data = request.json
-        print("Received data:", data)
+        print("📦 Raw incoming data:", data)
 
         qr = qrcode.QRCode(
             version=1,
@@ -44,7 +43,7 @@ def generate_qr():
             fill_rgb = ImageColor.getrgb(fill_color)
             back_rgb = ImageColor.getrgb(back_color)
         except ValueError:
-            print("Invalid color format")
+            print("❌ Invalid color format")
             return jsonify({"error": "Invalid color format"}), 400
 
         shape = data.get("shape", "square")
@@ -53,7 +52,8 @@ def generate_qr():
         img = qr.make_image(
             image_factory=StyledPilImage,
             module_drawer=drawer,
-            color_mask=SolidFillColorMask(front_color=fill_rgb, back_color=back_rgb)
+            fill_color=fill_rgb,
+            back_color=back_rgb
         )
 
         if data.get("center_image"):
@@ -89,7 +89,7 @@ def generate_qr():
             },
         )
 
-        print("Mailgun response:", response.status_code, response.text)
+        print("📧 Mailgun response:", response.status_code, response.text)
 
         if response.status_code == 200:
             return jsonify({"status": "success"})
@@ -97,7 +97,7 @@ def generate_qr():
             return jsonify({"error": "Email failed", "details": response.text}), 500
 
     except Exception as e:
-        print("Error during QR generation:", str(e))
+        print("🔥 Error during QR generation:", str(e))
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
