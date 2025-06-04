@@ -26,6 +26,7 @@ def index():
 def generate_qr():
     try:
         data = request.json
+        print("Received data:", data)
 
         qr = qrcode.QRCode(
             version=1,
@@ -39,11 +40,11 @@ def generate_qr():
         fill_color = data.get("fill_color", "#000000")
         back_color = data.get("back_color", "#FFFFFF")
 
-        # Convert color strings to RGB tuples
         try:
             fill_rgb = ImageColor.getrgb(fill_color)
             back_rgb = ImageColor.getrgb(back_color)
         except ValueError:
+            print("Invalid color format")
             return jsonify({"error": "Invalid color format"}), 400
 
         shape = data.get("shape", "square")
@@ -88,12 +89,15 @@ def generate_qr():
             },
         )
 
+        print("Mailgun response:", response.status_code, response.text)
+
         if response.status_code == 200:
             return jsonify({"status": "success"})
         else:
             return jsonify({"error": "Email failed", "details": response.text}), 500
 
     except Exception as e:
+        print("Error during QR generation:", str(e))
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
