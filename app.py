@@ -1,3 +1,4 @@
+
 from flask import Flask, request, jsonify
 import qrcode
 import io
@@ -31,16 +32,17 @@ def generate_qr():
             qr_type = qr_type[0]
         else:
             qr_type = "standard"
-        color = fields.get("data modules color (hex# or named color)", "black").strip()
+        color = fields.get("data modules color (hex# or named color)", "black")
         shape = fields.get("what border style would you like?", ["square"])
         if isinstance(shape, list):
             shape = shape[0]
         else:
             shape = "square"
 
-        print(f"🧾 Parsed - name: {name}, email: {email}, destination: {destination}, color: {color}")
+        logo = None  # optional upload
+        print(f"🧾 Parsed - name: {name}, email: {email}, destination: {destination}")
 
-        # Generate QR code
+        # QR generation
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_H,
@@ -68,18 +70,11 @@ def generate_qr():
             try:
                 html_body = f"""
                 <p>Hi {name},</p>
-                <p>Your custom QR for US™ code is ready to use.</p>
+                <p>Your QR Code is ready:</p>
                 <p><img src="data:image/png;base64,{img_str}" alt="QR Code" /></p>
-                <p>This one QR can be scanned, clicked, saved, or shared — on phones, flyers, websites, business cards, and anywhere else people connect with your story.</p>
-                <p><strong>How to use your QR:</strong></p>
-                <ul>
-                  <li><strong>Scan:</strong> Open any camera app and point it at the code.</li>
-                  <li><strong>Click:</strong> If viewing this email on a device, just tap the code image.</li>
-                  <li><strong>Save:</strong> Right-click (or tap+hold on mobile) to download the image as a PNG.</li>
-                </ul>
-                <p><a href="{do_over_link}">Need to make a change? Use our “Do Over” feature here.</a></p>
-                <p>Thanks for using QR for US™ — we connect real-life moments to the digital world.</p>
+                <p><a href="{do_over_link}">Click here to Do Over</a></p>
                 """
+                print("📧 Email HTML:", html_body)
 
                 response = requests.post(
                     f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
@@ -87,8 +82,43 @@ def generate_qr():
                     data={
                         "from": FROM_EMAIL,
                         "to": email,
-                        "subject": "Your QR for US™ code is ready to use!",
-                        "html": html_body
+                        "subject": "Your QR Code is Ready",
+                        "html": html_body, "text": """Hi [Customer Name],
+
+Your QR Code is ready!
+It's attached to this email as a PNG image -- ready to use in print, online, and everywhere in between.
+
+You can use this single code in three powerful ways:
+
+1. Scanable
+Print or display the image. It can be scanned instantly by any smartphone camera -- no app required.
+Use it on resumes, posters, name badges, pet tags, product packaging, signs, and more.
+
+2. Clickable
+Want to use it in a document or email? Easy.
+- Insert the PNG image anywhere.
+- Right-click it and choose "Add Hyperlink" or "Insert Link."
+- Paste your destination URL.
+That's it -- now it's clickable too.
+
+3. Saveable
+Right-click the image and select "Save As" to store it.
+Use it again whenever and wherever you need.
+
+Need to change the color, shape, or style?
+Click below to regenerate your QR (up to 2 times within 24 hours):
+[Do Over Link]
+
+QR for US(TM) connects your stories, profiles, and passions to the world -- one QR at a time.
+This code is your bridge between digital life and real-life moments.
+
+Have questions or want help with creative ideas? Reach us at qrforus1@gmail.com
+
+--
+QR for US(TM)
+Scan it. Click it. Share your story.
+https://qrforus.com
+"""
                     }
                 )
                 print("📤 Mailgun response:", response.status_code, response.text)
