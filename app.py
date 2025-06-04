@@ -23,6 +23,11 @@ def generate_qr():
         print("📦 Raw incoming data:", data)
 
         fields = {field['label'].strip().lower(): field['value'] for field in data.get("data", {}).get("fields", [])}
+# Fallback scan for any field key that contains 'url' or 'destination'
+destination = next((f['value'] for f in data.get("data", {}).get("fields", []) if 'url' in f['label'].lower() or 'destination' in f['label'].lower()), None)
+if not destination:
+    print("❌ Destination URL not found — check field labels or structure.")
+).get("fields", [])}
 
         name = fields.get("first name", "QR User")
         email = fields.get("email address")
