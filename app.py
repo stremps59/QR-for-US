@@ -30,19 +30,8 @@ def generate_qr():
         qr_type = fields.get("what type of qr would you like?", ["standard"])
         if isinstance(qr_type, list):
             qr_type = qr_type[0]
-        else:
-            qr_type = "standard"
         color = fields.get("data modules color (hex# or named color)", "black")
-        shape = fields.get("what border style would you like?", ["square"])
-        if isinstance(shape, list):
-            shape = shape[0]
-        else:
-            shape = "square"
 
-        logo = None  # optional upload
-        print(f"🧾 Parsed - name: {name}, email: {email}, destination: {destination}")
-
-        # QR generation
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_H,
@@ -64,28 +53,25 @@ def generate_qr():
         MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")
         FROM_EMAIL = os.getenv("FROM_EMAIL")
 
-        print(f"🔐 ENV - API Key Present: {bool(MAILGUN_API_KEY)}, Domain: {MAILGUN_DOMAIN}, From: {FROM_EMAIL}, To: {email}")
-
         if MAILGUN_API_KEY and MAILGUN_DOMAIN and FROM_EMAIL and email:
             try:
-                html_body = f"""
+                html_body = f"""<html>
+<body>
 <p>Hi {name},</p>
-<p>Your custom QR for US™ code is ready to use!</p>
+<p>Your QR for US™ QR code is ready to use!</p>
 <p><img src="data:image/png;base64,{img_str}" alt="QR Code" /></p>
-
-<p><strong>How to use it:</strong></p>
+<p>This code is your bridge between digital life and real-life moments. Here’s how to use it:</p>
 <ul>
-  <li><strong>Scan:</strong> Open your phone’s camera and aim it at the code.</li>
-  <li><strong>Click:</strong> Tap or right-click on the image to open the linked destination.</li>
-  <li><strong>Save:</strong> Right-click (desktop) or press-hold (mobile) to save and reuse this QR code.</li>
+  <li><strong>Scan it:</strong> Use your phone’s camera or a QR scanner to instantly visit your link.</li>
+  <li><strong>Click it:</strong> If viewing this email on your device, click the QR code above to open the destination.</li>
+  <li><strong>Save it:</strong> Right-click (or tap & hold) on the image to save it for printing, posting, or sharing.</li>
 </ul>
-
-<p><a href="{do_over_link}">Need a Do Over? Click here to regenerate your QR</a></p>
-
-<p><em>QR for US™ connects your stories, profiles, and passions to the world — one QR at a time.  
-This code is your bridge between digital life and real-life moments.</em></p>
+<p><a href="{do_over_link}">Need to make a quick change? Use your one-time Do Over link.</a></p>
+<p><em>No account required. No subscriptions. Just your story — beautifully connected.</em></p>
+<p>— QR for US™</p>
+</body>
+</html>
 """
-                print("📧 Email HTML:", html_body)
 
                 response = requests.post(
                     f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
@@ -93,12 +79,12 @@ This code is your bridge between digital life and real-life moments.</em></p>
                     data={
                         "from": FROM_EMAIL,
                         "to": email,
-                        "subject": "Your QR Code is Ready",
+                        "subject": "Your QR for US™ QR code is ready to use!",
                         "html": html_body
                     }
                 )
                 print("📤 Mailgun response:", response.status_code, response.text)
-            except Exception as e:
+            except Exception:
                 print("❌ Exception while sending email:")
                 traceback.print_exc()
 
