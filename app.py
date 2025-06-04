@@ -69,20 +69,41 @@ def generate_qr():
         if MAILGUN_API_KEY and MAILGUN_DOMAIN and FROM_EMAIL and email:
             try:
                 html_body = f"""
-<p>Your custom QR for US™ code is ready to use!</p>
-<p><img src="data:image/png;base64,{img_str}" alt="QR Code" /></p>
+<p>Hi {name},</p>
+<p>Your QR Code is ready!</p>
+<p>It's attached to this email as a PNG image — ready to use in print, online, and everywhere in between.</p>
 
-<p><strong>How to use it:</strong></p>
-<ul>
-  <li><strong>Scan:</strong> Open your phone’s camera and aim it at the code.</li>
-  <li><strong>Click:</strong> Tap or right-click on the image to open the linked destination.</li>
-  <li><strong>Save:</strong> Right-click (desktop) or press-hold (mobile) to save and reuse this QR code.</li>
-</ul>
+<p>You can use this single code in three powerful ways:</p>
+<ol>
+  <li><strong>Scannable</strong><br>
+  Print or display the image. It can be scanned instantly by any smartphone camera — no app required.<br>
+  Use it on resumes, posters, name badges, pet tags, product packaging, signs, and more.</li>
 
-<p><a href="{do_over_link}">Need a Do Over? Click here to regenerate your QR</a></p>
+  <li><strong>Clickable</strong><br>
+  Want to use it in a document or email? Easy.<br>
+  <ul>
+    <li>Insert the PNG image anywhere.</li>
+    <li>Right-click it and choose “Add Hyperlink” or “Insert Link.”</li>
+    <li>Paste your destination URL.</li>
+  </ul>
+  That's it — now it's clickable too.</li>
 
-<p><em>QR for US™ connects your stories, profiles, and passions to the world — one QR at a time.  
+  <li><strong>Saveable</strong><br>
+  Right-click the image and select “Save As” to store it.<br>
+  Use it again whenever and wherever you need.</li>
+</ol>
+
+<p><a href="{do_over_link}">Need to change the color, shape, or style? Click here to regenerate your QR (up to 2 times within 24 hours).</a></p>
+
+<p><em>QR for US™ connects your stories, profiles, and passions to the world — one QR at a time.<br>
 This code is your bridge between digital life and real-life moments.</em></p>
+
+<p>Have questions or want help with creative ideas? Reach us at <a href="mailto:qrforus1@gmail.com">qrforus1@gmail.com</a></p>
+
+<p>—<br>
+QR for US™<br>
+Scan it. Click it. Share your story.<br>
+<a href="https://qrforus.com">https://qrforus.com</a></p>
 """
                 print("📧 Email HTML:", html_body)
 
