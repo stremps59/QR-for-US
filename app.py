@@ -69,11 +69,35 @@ def generate_qr():
         if MAILGUN_API_KEY and MAILGUN_DOMAIN and FROM_EMAIL and email:
             try:
                 html_body = f"""
-                <p>Hi {name},</p>
-                <p>Your QR Code is ready:</p>
-                <p><img src="data:image/png;base64,{img_str}" alt="QR Code" /></p>
-                <p><a href="{do_over_link}">Click here to Do Over</a></p>
-                """
+<p>Hi {name},</p>
+<p>Your QR Code is ready!</p>
+<p>It's attached to this email as a PNG image -- ready to use in print, online, and everywhere in between.</p>
+<p>You can use this single code in three powerful ways:</p>
+<ol>
+  <li><strong>Scanable</strong><br>
+  Print or display the image. It can be scanned instantly by any smartphone camera -- no app required.<br>
+  Use it on resumes, posters, name badges, pet tags, product packaging, signs, and more.</li>
+  <li><strong>Clickable</strong><br>
+  Want to use it in a document or email? Easy.<br>
+  - Insert the PNG image anywhere.<br>
+  - Right-click it and choose "Add Hyperlink" or "Insert Link."<br>
+  - Paste your destination URL.<br>
+  That's it -- now it's clickable too.</li>
+  <li><strong>Saveable</strong><br>
+  Right-click the image and select "Save As" to store it.<br>
+  Use it again whenever and wherever you need.</li>
+</ol>
+<p>Need to change the color, shape, or style?<br>
+Click below to regenerate your QR (up to 2 times within 24 hours):<br>
+<a href="{do_over_link}">{do_over_link}</a></p>
+<p>QR for US™ connects your stories, profiles, and passions to the world -- one QR at a time.<br>
+This code is your bridge between digital life and real-life moments.</p>
+<p>Have questions or want help with creative ideas? Reach us at qrforus1@gmail.com</p>
+<hr>
+<p><strong>QR for US™<br>
+Scan it. Click it. Share your story.<br>
+<a href="https://qrforus.com">https://qrforus.com</a></strong></p>
+"""
                 print("📧 Email HTML:", html_body)
 
                 response = requests.post(
