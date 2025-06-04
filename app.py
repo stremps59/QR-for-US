@@ -1,3 +1,4 @@
+
 from flask import Flask, request, jsonify
 import qrcode
 import io
@@ -10,6 +11,7 @@ from flask_cors import CORS
 from qrcode.image.styledpil import StyledPilImage
 from qrcode.image.styles.moduledrawers import SquareModuleDrawer, GappedSquareModuleDrawer, CircleModuleDrawer
 from qrcode.image.styles.colormasks import SolidFillColorMask
+from PIL import ImageColor
 
 app = Flask(__name__)
 CORS(app)
@@ -30,9 +32,15 @@ def generate_qr():
         email = fields.get("email address")
         destination = fields.get("where should your qr code point (website/url)", "https://qrforus.com")
         qr_type = fields.get("what type of qr would you like?", ["standard"])[0] if isinstance(fields.get("what type of qr would you like?"), list) else "standard"
-        color = fields.get("data modules color (hex# or named color)", "black")
+        raw_color = fields.get("data modules color (hex# or named color)", "black")
         shape = fields.get("what border style would you like?", ["square"])[0] if isinstance(fields.get("what border style would you like?"), list) else "square"
-        logo = None  # Placeholder for future use
+        logo = None
+
+        try:
+            color = ImageColor.getrgb(raw_color)
+        except ValueError:
+            print(f"⚠️ Invalid color input: {raw_color}. Defaulting to black.")
+            color = (0, 0, 0)
 
         print(f"🧾 Parsed - name: {name}, email: {email}, destination: {destination}, color: {color}, shape: {shape}")
 
