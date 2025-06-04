@@ -69,11 +69,22 @@ def generate_qr():
         if MAILGUN_API_KEY and MAILGUN_DOMAIN and FROM_EMAIL and email:
             try:
                 html_body = f"""
-                <p>Hi {name},</p>
-                <p>Your QR Code is ready:</p>
-                <p><img src="data:image/png;base64,{img_str}" alt="QR Code" /></p>
-                <p><a href="{do_over_link}">Click here to Do Over</a></p>
-                """
+<p>Hi {name},</p>
+<p>Your custom QR for US™ code is ready to use!</p>
+<p><img src="data:image/png;base64,{img_str}" alt="QR Code" /></p>
+
+<p><strong>How to use it:</strong></p>
+<ul>
+  <li><strong>Scan:</strong> Open your phone’s camera and aim it at the code.</li>
+  <li><strong>Click:</strong> Tap or right-click on the image to open the linked destination.</li>
+  <li><strong>Save:</strong> Right-click (desktop) or press-hold (mobile) to save and reuse this QR code.</li>
+</ul>
+
+<p><a href="{do_over_link}">Need a Do Over? Click here to regenerate your QR</a></p>
+
+<p><em>QR for US™ connects your stories, profiles, and passions to the world — one QR at a time.  
+This code is your bridge between digital life and real-life moments.</em></p>
+"""
                 print("📧 Email HTML:", html_body)
 
                 response = requests.post(
