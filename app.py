@@ -1,3 +1,4 @@
+
 from flask import Flask, request, jsonify
 import qrcode
 import io
@@ -31,16 +32,17 @@ def generate_qr():
             qr_type = qr_type[0]
         else:
             qr_type = "standard"
-        color = (fields.get("data modules color (hex# or named color)", "black") or "black").strip()
+        color = fields.get("data modules color (hex# or named color)", "black")
         shape = fields.get("what border style would you like?", ["square"])
         if isinstance(shape, list):
             shape = shape[0]
         else:
             shape = "square"
 
+        logo = None  # optional upload
         print(f"🧾 Parsed - name: {name}, email: {email}, destination: {destination}")
 
-        # Generate QR code
+        # QR generation
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_H,
@@ -53,7 +55,7 @@ def generate_qr():
 
         buffer = io.BytesIO()
         img.save(buffer, format="PNG")
-        buffer.seek(0)
+        img_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
         qr_id = str(uuid.uuid4())[:8]
         do_over_link = f"https://qrforus.com/do-over?id={qr_id}"
@@ -66,28 +68,21 @@ def generate_qr():
 
         if MAILGUN_API_KEY and MAILGUN_DOMAIN and FROM_EMAIL and email:
             try:
-                html_body = f"""<p>Hi {name},</p>
-<p>Your custom QR for US™ code is ready to use.</p>
-<p>This one QR can be scanned, clicked, saved, or shared — on phones, flyers, websites, business cards, and anywhere else people connect with your story.</p>
-<p><strong>How to use your QR:</strong></p>
-<ul>
-  <li><strong>Scan:</strong> Open any camera app and point it at the code.</li>
-  <li><strong>Click:</strong> If viewing this email on a device, just tap the code image.</li>
-  <li><strong>Save:</strong> Right-click (or tap+hold on mobile) to download the image as a PNG.</li>
-</ul>
-<p><a href="{do_over_link}">Need to make a change? Use our “Do Over” feature here.</a></p>
-<p>Thanks for using QR for US™ — we connect real-life moments to the digital world.</p>
-<p>—<br>QR for US™<br><a href="https://qrforus.com">https://qrforus.com</a></p>
-"""
+                html_body = f"""
+                <p>Hi {name},</p>
+                <p>Your QR Code is ready:</p>
+                <p><img src="data:image/png;base64,{img_str}" alt="QR Code" /></p>
+                <p><a href="{do_over_link}">Click here to Do Over</a></p>
+                """
+                print("📧 Email HTML:", html_body)
 
                 response = requests.post(
                     f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
                     auth=("api", MAILGUN_API_KEY),
-                    files=[("attachment", ("qr_code.png", buffer.getvalue(), "image/png"))],
                     data={
                         "from": FROM_EMAIL,
                         "to": email,
-                        "subject": "Your QR for US™ code is ready to use!",
+                        "subject": "Your QR Code is Ready",
                         "html": html_body
                     }
                 )
@@ -98,6 +93,7 @@ def generate_qr():
 
         return jsonify({
             "message": "QR created",
+            "clickable_image": f"data:image/png;base64,{img_str}",
             "do_over_link": do_over_link
         })
 
