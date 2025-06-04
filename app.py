@@ -24,7 +24,7 @@ def generate_qr():
 
         name = fields.get("first name", "QR User")
         email = fields.get("email address")
-        destination = fields.get("where should your qr code point (website/url)?")
+        destination = fields.get("where should your qr code point (website/url)")
         qr_type = fields.get("what type of qr would you like?", ["standard"])
         if isinstance(qr_type, list):
             qr_type = qr_type[0]
