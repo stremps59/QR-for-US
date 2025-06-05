@@ -2,4 +2,4 @@ flask==3.1.1
 flask-cors==6.0.0
 requests==2.32.3
 pillow==11.2.1
-qrcode @ git+https://github.com/lincolnloop/python-qrcode.git@3704f57
+qrcode @ git+https://github.com/ecies/qrcode.git@styles
