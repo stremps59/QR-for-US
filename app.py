@@ -1,3 +1,4 @@
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import qrcode
@@ -13,6 +14,7 @@ import io
 import base64
 import requests
 import os
+import re
 
 app = Flask(__name__)
 CORS(app)
@@ -20,6 +22,15 @@ CORS(app)
 MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
 MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")
 FROM_EMAIL = os.getenv("FROM_EMAIL")
+
+def is_valid_color(color_value):
+    named_colors = {
+        "black", "white", "red", "blue", "green", "yellow", "purple", "orange",
+        "gray", "grey", "cyan", "magenta", "pink", "brown", "lime", "navy",
+        "teal", "aqua", "maroon", "olive", "silver"
+    }
+    hex_pattern = r"^#?[0-9a-fA-F]{6}$"
+    return bool(re.match(hex_pattern, color_value)) or color_value.lower() in named_colors
 
 @app.route("/generate_qr", methods=["POST"])
 def generate_qr():
@@ -43,7 +54,10 @@ def generate_qr():
     if not form["url"] or not form["email"]:
         return jsonify({"error": "URL and Email are required fields."}), 400
 
-    # Map styles
+    for key in ["fill_color", "eye_color", "border_color", "center_color"]:
+        if not is_valid_color(form[key]):
+            return jsonify({"error": f"Invalid color value provided for {key.replace('_', ' ')}."}), 400
+
     module_styles = {
         "square": SquareModuleDrawer(),
         "rounded": RoundedModuleDrawer(),
@@ -70,38 +84,47 @@ def generate_qr():
             center_img = Image.open(io.BytesIO(decoded))
         except Exception as e:
             app.logger.warning(f"Image decode failed: {e}")
+            return jsonify({"error": "Failed to decode the uploaded image."}), 400
 
-    img = qr.make_image(
-        image_factory=StyledPilImage,
-        module_drawer=module_drawer,
-        eye_drawer=eye_drawer,
-        color_mask=None,
-        embeded_image=center_img,
-        fill_color=form["fill_color"],
-        back_color=form["center_color"]
-    )
+    try:
+        img = qr.make_image(
+            image_factory=StyledPilImage,
+            module_drawer=module_drawer,
+            eye_drawer=eye_drawer,
+            color_mask=None,
+            embeded_image=center_img,
+            fill_color=form["fill_color"],
+            back_color=form["center_color"]
+        )
+    except Exception as e:
+        app.logger.error(f"QR generation error: {e}")
+        return jsonify({"error": "Failed to generate QR code image."}), 500
 
     img_byte_arr = io.BytesIO()
     img.save(img_byte_arr, format="PNG")
     img_byte_arr.seek(0)
 
-    try:
-        response = requests.post(
-            f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
-            auth=("api", MAILGUN_API_KEY),
-            files=[("attachment", ("qr_code.png", img_byte_arr.getvalue()))],
-            data={
-                "from": FROM_EMAIL,
-                "to": [form["email"]],
-                "subject": "Your QR Code from QR for US",
-                "text": f"Hi {form['first_name']},\n\nYour QR code is attached. It points to: {form['url']}"
-            },
-        )
-        response.raise_for_status()
-        return jsonify({"message": "QR code sent successfully"}), 200
-    except requests.exceptions.RequestException as e:
-        app.logger.error(f"Error sending email: {e}")
-        return jsonify({"error": "Failed to send email"}), 500
+    if MAILGUN_API_KEY and MAILGUN_DOMAIN and FROM_EMAIL:
+        try:
+            response = requests.post(
+                f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
+                auth=("api", MAILGUN_API_KEY),
+                files=[("attachment", ("qr_code.png", img_byte_arr.getvalue()))],
+                data={
+                    "from": FROM_EMAIL,
+                    "to": [form["email"]],
+                    "subject": "Your QR Code from QR for US",
+                    "text": f"Hi {form['first_name']},\n\nYour QR code is attached. It points to: {form['url']}"
+                },
+            )
+            response.raise_for_status()
+            return jsonify({"message": "QR code sent successfully"}), 200
+        except requests.exceptions.RequestException as e:
+            app.logger.error(f"Error sending email: {e}")
+            return jsonify({"error": "Failed to send email"}), 500
+    else:
+        app.logger.error("Missing Mailgun configuration.")
+        return jsonify({"error": "Missing email configuration."}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
