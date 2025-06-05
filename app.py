@@ -39,7 +39,7 @@ def generate_qr():
             box_size=10,
             border=4,
         )
-        qr.add_data(destination or "https://qrforus.com")
+        qr.add_data(destination)
         qr.make(fit=True)
         img = qr.make_image(fill_color=color, back_color="white").convert("RGB")
 
