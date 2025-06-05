@@ -2,4 +2,4 @@ flask==3.1.1
 flask-cors==6.0.0
 requests==2.32.3
 pillow==11.2.1
-qrcode @ git+https://github.com/ecies/qrcode.git@styles
+./qrcode_styled-7.4.2-py3-none-any.whl
