@@ -1,24 +1,27 @@
 
-import io
-import os
-import qrcode
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
+import qrcode
 from qrcode.image.styledpil import StyledPilImage
 from qrcode.image.styles.moduledrawers import RoundedModuleDrawer
-from qrcode.image.styles.colormasks import SolidFillColorMask
-from qrcode.image.styles.eyedrawers import SquareEyeDrawer, RoundedEyeDrawer, HorizontalBarsEyeDrawer
+import io
 import requests
-from email.message import EmailMessage
-import smtplib
 from PIL import Image
+import base64
+import os
 
 app = Flask(__name__)
 CORS(app)
 
-@app.route("/generate_qr", methods=["POST"])
+MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
+MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")
+FROM_EMAIL = os.getenv("FROM_EMAIL")
+
+@app.route('/generate_qr', methods=['POST'])
 def generate_qr():
-    data = request.json
+    data = request.get_json()
+
+    # Extract form data
     form = {
         "email": data.get("Email address"),
         "url": data.get("Where should your QR Code point (Website/URL)?"),
@@ -33,57 +36,39 @@ def generate_qr():
         "last_name": data.get("Last Name"),
     }
 
-    qr_url = form["url"] or "https://qrforus.com"
+    destination_url = form["url"]
     fill_color = form["fill_color"] or "black"
-    eye_color = form["eye_color"] or "black"
 
-    img = qrcode.make(qr_url, image_factory=StyledPilImage, module_drawer=RoundedModuleDrawer(), 
-                      color_mask=SolidFillColorMask(back_color="white", front_color=fill_color),
-                      eye_drawer=SquareEyeDrawer())
+    qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_H)
+    qr.add_data(destination_url)
+    qr.make(fit=True)
 
-    buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
-    buffer.seek(0)
+    img = qr.make_image(
+        image_factory=StyledPilImage,
+        module_drawer=RoundedModuleDrawer(),
+        fill_color=fill_color,
+        back_color="white"
+    )
 
-    msg = EmailMessage()
-    msg["Subject"] = "Your QR for US™ code is ready to use!"
-    msg["From"] = "qrforus@sandboxa061d0b883b44bc4becd4bcc81bef2.mailgun.org"
-    msg["To"] = form["email"]
+    # Save to a BytesIO object
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format="PNG")
+    img_byte_arr.seek(0)
 
-    msg.set_content(f"""Hi {form["first_name"]},
+    # Send email via Mailgun
+    requests.post(
+        f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
+        auth=("api", MAILGUN_API_KEY),
+        files=[("attachment", ("qr_code.png", img_byte_arr.read()))],
+        data={
+            "from": FROM_EMAIL,
+            "to": [form["email"]],
+            "subject": "Your QR Code from QR for US",
+            "text": f"Hi {form['first_name']},\n\nYour QR code is attached. It points to: {destination_url}"
+        },
+    )
 
-Your custom QR for US™ code is ready to use.
+    return jsonify({"message": "QR code sent successfully"}), 200
 
-This one QR can be scanned, clicked, saved, or shared — on phones, flyers, websites, business cards, and anywhere else people connect with your story.
-
-How to use your QR:
-• Scan: Open any camera app and point it at the code.
-• Click: If viewing this email on a device, just tap the code image.
-• Save: Right-click (or tap+hold on mobile) to download the image as a PNG.
-
-Thanks for using QR for US™ — we connect real-life moments to the digital world.
-
-Have questions or want help with creative ideas? Email us at qrforus1@gmail.com
-
-QR for US™
-Scan It. Click It. Share your story.
-https://qrforus.com
-""")
-
-    msg.add_attachment(buffer.read(), maintype="image", subtype="png", filename="qr.png")
-
-    try:
-        response = requests.post(
-            "https://api.mailgun.net/v3/sandboxa061d0b883b44bc4becd4bcc81bef2.mailgun.org/messages",
-            auth=("api", os.environ["MAILGUN_API_KEY"]),
-            files=[("attachment", ("qr.png", buffer.getvalue()))],
-            data={"from": msg["From"],
-                  "to": [msg["To"]],
-                  "subject": msg["Subject"],
-                  "text": msg.get_content()})
-        return jsonify({"status": "success", "mailgun_response": response.json()})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)})
-
-if __name__ == "__main__":
-    app.run(debug=True, port=10000)
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=10000)
