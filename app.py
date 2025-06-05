@@ -4,7 +4,7 @@ import qrcode
 from qrcode.image.styledpil import StyledPilImage
 from qrcode.image.styles.moduledrawers import RoundedModuleDrawer, GappedSquareModuleDrawer, CircleModuleDrawer
 from qrcode.image.styles.colormasks import SolidFillColorMask
-from qrcode.image.styles.eyedrawers import RoundedEyeDrawer, SquareEyeDrawer, HorizontalBarsEyeDrawer
+from qrcode.image.styles.eye import RoundedEyeDrawer, SquareEyeDrawer, HorizontalBarsEyeDrawer
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import requests
