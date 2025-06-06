@@ -118,13 +118,4 @@ def generate_qr():
                         "from": FROM_EMAIL,
                         "to": [form["email"]],
                         "subject": "Your QR Code from QR for US",
-                        "text": f"Hi {form['first_name']},\n\nThank you for using QR for US!\n\nYour QR code is attached. It points to: {form['url']}"
-                    },
-                )
-                response.raise_for_status()
-                return jsonify({"message": "QR code sent successfully"}), 200
-            except requests.exceptions.RequestException as e:
-                app.logger.error(f"Error sending email: {e}")
-                return jsonify({"error": "Failed to send email"}), 500
-        else:
-            app.logger.
+                        "text": f"Hi {form['first_name']},\n
