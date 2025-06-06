@@ -118,7 +118,7 @@ def generate_qr():
                         "from": FROM_EMAIL,
                         "to": [form["email"]],
                         "subject": "Your QR Code from QR for US",
-                        "text": f"Hi {form['first_name']},
+                        "text": f"Hi {form['first_name']},\n\nYour QR code is attached. It points to: {form['url']}"
 
 Your QR code is attached. It points to: {form['url']}"
                     },
