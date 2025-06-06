@@ -1,5 +1,5 @@
-flask==3.1.1
-qrcode[pil]==7.4.2
+Flask==3.1.1
+git+https://github.com/lincolnloop/python-qrcode.git@main#egg=qrcode
 flask-cors==6.0.0
 requests==2.32.3
 Pillow==11.2.1
