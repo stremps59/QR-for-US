@@ -1,13 +1,14 @@
-
 import os
 import io
 import uuid
 import base64
-import qrcode
+import sys
+import qrcode_styled as qrcode
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
 
+# Advanced styling modules
 from qrcode.image.styledpil import StyledPilImage
 from qrcode.image.styles.moduledrawers import SquareModuleDrawer, RoundedModuleDrawer, CircleModuleDrawer
 from qrcode.image.styles.eyedrawers import SquareEyeDrawer, RoundedEyeDrawer
@@ -58,7 +59,7 @@ def generate_qr():
 
         eye_drawer = {
             "standard": SquareEyeDrawer(),
-            "rounded": RoundedEyeDrawer()
+            "rounded": RoundedEyeDrawer(),
         }.get(corner_style, SquareEyeDrawer())
 
         qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_H)
@@ -76,7 +77,8 @@ def generate_qr():
         img.save(buffered, format="PNG")
         img_base64 = base64.b64encode(buffered.getvalue()).decode()
 
-        html_body = f"""<p>Hi {first_name},</p>
+        html_body = f""" 
+        <p>Hi {first_name},</p>
         <p>Your QR Code is ready!</p>
         <p>It's attached to this email as a PNG image -- ready to use in print, online, and everywhere in between.</p>
         <p>You can use this single code in three powerful ways:</p>
@@ -101,34 +103,17 @@ def generate_qr():
         This code is your bridge between digital life and real-life moments.</p>
         <p>Have questions or want help with creative ideas? Reach us at qrforus1@gmail.com</p>
         <hr>
-        <p><strong>QR for US™<br>
-        Scan it. Click it. Share your story.<br>
-        <a href="https://qrforus.com">https://qrforus.com</a></strong></p>
-        """
-
-        if not MAILGUN_API_KEY or not MAILGUN_DOMAIN:
-            return jsonify({"error": "Mailgun API key and domain are not configured"}), 500
-
-        response = requests.post(
-            f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
-            auth=("api", MAILGUN_API_KEY),
-            files={"attachment": ("qr.png", buffered.getvalue())},
-            data={
-                "from": MAILGUN_FROM,
-                "to": email,
-                "subject": "Your QR for US™ code is ready to use!",
-                "html": html_body
-            },
-        )
+        <p><strong>QR for US™<br>"""
 
         return jsonify({
-            "message": "QR code sent",
-            "mailgun": response.text
-        })
+            "status": "success",
+            "email": email,
+            "image": img_base64,
+            "html": html_body
+        }), 200
 
     except Exception as e:
-        print(f"ERROR during QR generation: {e}")
-        return jsonify({"error": str(e)}), 500
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+        sys.stderr.write(f"[QR-ERROR] {e}
+")
+        sys.stderr.flush()
+        return jsonify({"status": "error", "message": str(e)}), 500
