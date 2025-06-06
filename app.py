@@ -81,7 +81,7 @@ def generate_qr():
             header, encoded = form["image_data"].split(",", 1)
             decoded = base64.b64decode(encoded)
             center_img = Image.open(io.BytesIO(decoded))
-        except Exception as e:
+        except (ValueError, Exception) as e:
             app.logger.warning(f"Image decode failed: {e}")
             return jsonify({"error": "Failed to decode the uploaded image."}), 400
 
