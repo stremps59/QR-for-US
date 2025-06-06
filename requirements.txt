@@ -1,5 +1,4 @@
 Flask==3.1.1
-git+https://github.com/stremps59/qrcode-styled.git@main#egg=qrcode-styled
 flask-cors==6.0.0
 requests==2.32.3
 Pillow==11.2.1
