@@ -3,7 +3,7 @@ import os
 import io
 import uuid
 import base64
-import qrcode
+import qrcode_styled as qrcode
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
