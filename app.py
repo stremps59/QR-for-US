@@ -125,4 +125,6 @@ def generate_qr():
                 return jsonify({"message": "QR code sent successfully"}), 200
             except requests.exceptions.RequestException as e:
                 app.logger.error(f"Error sending email: {e}")
-                return jsonify({"error": "Failed to send email"}
+                return jsonify({"error": "Failed to send email"}), 500
+        else:
+            app.logger.
