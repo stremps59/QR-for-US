@@ -15,7 +15,10 @@ import requests
 import os
 import re
 
+import logging
+
 app = Flask(__name__)
+logging.basicConfig(level=logging.INFO)
 CORS(app)
 
 MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
@@ -34,6 +37,7 @@ def is_valid_color(color_value):
 @app.route("/generate_qr", methods=["POST"])
 def generate_qr():
     data = request.get_json()
+    app.logger.info(f"Incoming form data: {data}")
     app.logger.info(f"Raw form submission received: {data}")
 
     form = {
@@ -114,7 +118,9 @@ def generate_qr():
                         "from": FROM_EMAIL,
                         "to": [form["email"]],
                         "subject": "Your QR Code from QR for US",
-                        "text": f"Hi {form['first_name']},\n\nYour QR code is attached. It points to: {form['url']}"
+                        "text": f"Hi {form['first_name']},
+
+Your QR code is attached. It points to: {form['url']}"
                     },
                 )
                 response.raise_for_status()
