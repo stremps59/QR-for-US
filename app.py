@@ -8,10 +8,15 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
 
+# Advanced styling modules
+from qrcode.image.styledpil import StyledPilImage
+from qrcode.image.styles.moduledrawers import SquareModuleDrawer, RoundedModuleDrawer, CircleModuleDrawer
+from qrcode.image.styles.eyedrawers import SquareEyeDrawer, RoundedEyeDrawer
+from qrcode.image.styles.colormasks import SolidFillColorMask
+
 app = Flask(__name__)
 CORS(app)
 
-# Load environment variables with default values
 MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY", "")
 MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN", "")
 MAILGUN_FROM = os.getenv("MAILGUN_FROM", f"mailgun@{MAILGUN_DOMAIN}")
@@ -26,7 +31,6 @@ def generate_qr():
         data = request.json or {}
         fields = data.get("data", {}).get("fields", [])
 
-        # Extract field values with fallback
         def get_field(label, default=""):
             for field in fields:
                 if isinstance(field, dict) and field.get("label", "").strip().lower() == label.strip().lower():
@@ -37,30 +41,46 @@ def generate_qr():
         email = get_field("Email address", "")
         destination = get_field("Where should your QR Code point (Website/URL)?", "https://qrforus.com")
 
-        # Set default QR styling colors
-        # Log color field values
-        print(f"Data modules color: {data_color}")
-        print(f"Border color: {border_color}")
-        print(f"Dot color: {dot_color}")
-        print(f"Center color: {center_color}")
-
+        # Get all color and style fields
+        border_style = get_field("Border Style?", "Square").lower()
+        corner_style = get_field("Corner Finder Pattern Style?", "Standard").lower()
         border_color = get_field("Border Color (HEX# or Named color)", "black")
         dot_color = get_field("Corner finder dots color (HEX# or Named color)", "black")
         center_color = get_field("Center image color (if no image uploaded; HEX# or Named color)", "black")
         data_color = get_field("Data modules color (HEX# or Named color)", "black")
 
+        print(f"Color Fields => Data: {data_color}, Border: {border_color}, Dots: {dot_color}, Center: {center_color}")
+        print(f"Style Fields => Border: {border_style}, Eye: {corner_style}")
+
+        # Style logic
+        module_drawer = {
+            "square": SquareModuleDrawer(),
+            "rounded": RoundedModuleDrawer(),
+            "circle": CircleModuleDrawer()
+        }.get(border_style, SquareModuleDrawer())
+
+        eye_drawer = {
+            "standard": SquareEyeDrawer(),
+            "rounded": RoundedEyeDrawer(),
+            "framed": SquareEyeDrawer()  # Placeholder
+        }.get(corner_style, SquareEyeDrawer())
+
         # Generate QR
         qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_H)
         qr.add_data(destination)
         qr.make(fit=True)
-        img = qr.make_image(fill_color=data_color, back_color="white").convert("RGB")
 
-        # Convert to bytes
+        img = qr.make_image(
+            image_factory=StyledPilImage,
+            module_drawer=module_drawer,
+            eye_drawer=eye_drawer,
+            color_mask=SolidFillColorMask(back_color="white", front_color=data_color)
+        ).convert("RGB")
+
         buffered = io.BytesIO()
         img.save(buffered, format="PNG")
         img_base64 = base64.b64encode(buffered.getvalue()).decode()
 
-        # Compose HTML email
         html_body = f""" 
         <p>Hi {first_name},</p>
         <p>Your QR Code is ready!</p>
@@ -92,7 +112,6 @@ def generate_qr():
         <a href="https://qrforus.com">https://qrforus.com</a></strong></p>
         """
 
-        # Check if Mailgun API key and domain are set
         if not MAILGUN_API_KEY or not MAILGUN_DOMAIN:
             return jsonify({"error": "Mailgun API key and domain are not configured"}), 500
 
@@ -116,6 +135,10 @@ def generate_qr():
                 "border_color": border_color,
                 "dot_color": dot_color,
                 "center_color": center_color
+            },
+            "styles": {
+                "border_style": border_style,
+                "corner_style": corner_style
             }
         })
 
