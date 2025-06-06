@@ -120,7 +120,7 @@ def generate_qr():
                         "subject": "Your QR Code from QR for US",
                         "text": f"Hi {form['first_name']},\n\nYour QR code is attached. It points to: {form['url']}"
 
-Your QR code is attached. It points to: {form['url']}"
+        "text": f"Hi {form['first_name']},\n\nThank you for using QR for US!\n\nYour QR code is attached. It points to: {form['url']}\n",
                     },
                 )
                 response.raise_for_status()
