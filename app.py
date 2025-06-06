@@ -38,6 +38,12 @@ def generate_qr():
         destination = get_field("Where should your QR Code point (Website/URL)?", "https://qrforus.com")
 
         # Set default QR styling colors
+        # Log color field values
+        print(f"Data modules color: {data_color}")
+        print(f"Border color: {border_color}")
+        print(f"Dot color: {dot_color}")
+        print(f"Center color: {center_color}")
+
         border_color = get_field("Border Color (HEX# or Named color)", "black")
         dot_color = get_field("Corner finder dots color (HEX# or Named color)", "black")
         center_color = get_field("Center image color (if no image uploaded; HEX# or Named color)", "black")
@@ -102,7 +108,16 @@ def generate_qr():
             },
         )
 
-        return jsonify({"message": "QR code sent", "mailgun": response.text})
+        return jsonify({
+            "message": "QR code sent",
+            "mailgun": response.text,
+            "colors": {
+                "data_color": data_color,
+                "border_color": border_color,
+                "dot_color": dot_color,
+                "center_color": center_color
+            }
+        })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
