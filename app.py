@@ -124,7 +124,7 @@ def generate_qr():
             except requests.exceptions.RequestException as e:
                 app.logger.error(f"Error sending email: {e}")
         return jsonify({"error": "Failed to send email"})
-        else:
+    else:
             app.logger.error("Mailgun API key, domain, or from email not set.")
             return jsonify({"error": "Failed to send email due to missing configuration."}), 500
 
