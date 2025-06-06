@@ -127,6 +127,7 @@ def generate_qr():
         })
 
     except Exception as e:
+        print(f"ERROR during QR generation: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
