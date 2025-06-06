@@ -15,10 +15,7 @@ import requests
 import os
 import re
 
-import logging
-
 app = Flask(__name__)
-logging.basicConfig(level=logging.INFO)
 CORS(app)
 
 MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
@@ -32,12 +29,11 @@ def is_valid_color(color_value):
         "teal", "aqua", "maroon", "olive", "silver"
     }
     hex_pattern = r"^#?[0-9a-fA-F]{6}$"
-    return bool(color_value and re.match(hex_pattern, color_value.lstrip("#"))) or color_value.lower() in named_colors
+    return bool(re.match(hex_pattern, color_value.lstrip("#"))) or color_value.lower() in named_colors
 
 @app.route("/generate_qr", methods=["POST"])
 def generate_qr():
     data = request.get_json()
-    app.logger.info(f"Incoming form data: {data}")
     app.logger.info(f"Raw form submission received: {data}")
 
     form = {
@@ -118,4 +114,19 @@ def generate_qr():
                         "from": FROM_EMAIL,
                         "to": [form["email"]],
                         "subject": "Your QR Code from QR for US",
-                        "text": f"Hi {form['first_name']},\n
+                        "text": f"Hi {form['first_name']},
+
+Your QR code is attached. It points to: {form['url']}"
+                    },
+                )
+                response.raise_for_status()
+                return jsonify({"message": "QR code sent successfully"}), 200
+            except requests.exceptions.RequestException as e:
+                app.logger.error(f"Error sending email: {e}")
+        return jsonify({"error": "Failed to send email"})
+        else:
+            app.logger.error("Mailgun API key, domain, or from email not set.")
+            return jsonify({"error": "Failed to send email due to missing configuration."}), 500
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
