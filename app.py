@@ -1,13 +1,14 @@
+
 import os
 import io
 import uuid
 import base64
-import sys
-import qrcode
+import qrcode as qrcode
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
 
+# Advanced styling modules
 from qrcode.image.styledpil import StyledPilImage
 from qrcode.image.styles.moduledrawers import SquareModuleDrawer, RoundedModuleDrawer, CircleModuleDrawer
 from qrcode.image.styles.eyedrawers import SquareEyeDrawer, RoundedEyeDrawer
@@ -39,7 +40,6 @@ def generate_qr():
         first_name = get_field("First Name", "")
         email = get_field("Email address", "")
         destination = get_field("Where should your QR Code point (Website/URL)?", "https://qrforus.com")
-
         border_style = get_field("Border Style?", "Square").lower()
         corner_style = get_field("Corner Finder Pattern Style?", "Standard").lower()
         border_color = get_field("Border Color (HEX# or Named color)", "black")
@@ -76,49 +76,20 @@ def generate_qr():
         img.save(buffered, format="PNG")
         img_base64 = base64.b64encode(buffered.getvalue()).decode()
 
-        html_body = f""" 
-        <p>Hi {first_name},</p>
-        <p>Your QR Code is ready!</p>
-        <p>It's attached to this email as a PNG image -- ready to use in print, online, and everywhere in between.</p>
-        <p>You can use this single code in three powerful ways:</p>
-        <ol>
-          <li><strong>Scanable</strong><br>
-          Print or display the image. It can be scanned instantly by any smartphone camera -- no app required.<br>
-          Use it on resumes, posters, name badges, pet tags, product packaging, signs, and more.</li>
-          <li><strong>Clickable</strong><br>
-          Want to use it in a document or email? Easy.<br>
-          - Insert the PNG image anywhere.<br>
-          - Right-click it and choose "Add Hyperlink" or "Insert Link."<br>
-          - Paste your destination URL.<br>
-          That's it -- now it's clickable too.</li>
-          <li><strong>Saveable</strong><br>
-          Right-click the image and select "Save As" to store it.<br>
-          Use it again whenever and wherever you need.</li>
-        </ol>
-        <p>Need to change the color, shape, or style?<br>
-        Click below to regenerate your QR (up to 2 times within 24 hours):<br>
-        <a href="https://qrforus.com/do-over?id={uuid.uuid4().hex[:8]}">https://qrforus.com/do-over?id={uuid.uuid4().hex[:8]}</a></p>
-        <p>QR for US™ connects your stories, profiles, and passions to the world -- one QR at a time.<br>
-        This code is your bridge between digital life and real-life moments.</p>
-        <p>Have questions or want help with creative ideas? Reach us at qrforus1@gmail.com</p>
-        <hr>
-        <p><strong>QR for US™</strong></p>
-        """.strip()
-
-        response = requests.post(
-            f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
-            auth=("api", MAILGUN_API_KEY),
-            files={"attachment": ("qr.png", buffered.getvalue())},
-            data={
-                "from": MAILGUN_FROM,
-                "to": [email],
-                "subject": "🎉 Your QR Code from QR for US is Ready!",
-                "html": html_body
-            },
+        html_body = (
+            f"<p>Hi {first_name},</p>"
+            f"<p>Your QR Code is ready!</p>"
+            f"<p>It's attached to this email as a PNG image -- ready to use in print, online, and everywhere in between.</p>"
+            f"<p>QR for US™ connects your stories, profiles, and passions to the world -- one QR at a time.</p>"
         )
-        print("Mailgun response:", response.status_code, response.text)
-        return jsonify({"status": "success", "message": "QR code generated and email sent."}), 200
+
+        return jsonify({"qr_base64": img_base64, "email_body": html_body})
 
     except Exception as e:
+        import sys
         sys.stderr.write(f"[QR-ERROR] {e}\n")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
