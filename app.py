@@ -8,7 +8,6 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
 
-# Advanced styling modules
 from qrcode.image.styledpil import StyledPilImage
 from qrcode.image.styles.moduledrawers import SquareModuleDrawer, RoundedModuleDrawer, CircleModuleDrawer
 from qrcode.image.styles.eyedrawers import SquareEyeDrawer, RoundedEyeDrawer
@@ -103,16 +102,23 @@ def generate_qr():
         This code is your bridge between digital life and real-life moments.</p>
         <p>Have questions or want help with creative ideas? Reach us at qrforus1@gmail.com</p>
         <hr>
-        <p><strong>QR for US™<br>"""
+        <p><strong>QR for US™</strong></p>
+        """.strip()
 
-        return jsonify({
-            "status": "success",
-            "email": email,
-            "image": img_base64,
-            "html": html_body
-        }), 200
+        response = requests.post(
+            f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
+            auth=("api", MAILGUN_API_KEY),
+            files={"attachment": ("qr.png", buffered.getvalue())},
+            data={
+                "from": MAILGUN_FROM,
+                "to": [email],
+                "subject": "🎉 Your QR Code from QR for US is Ready!",
+                "html": html_body
+            },
+        )
+        print("Mailgun response:", response.status_code, response.text)
+        return jsonify({"status": "success", "message": "QR code generated and email sent."}), 200
 
     except Exception as e:
         sys.stderr.write(f"[QR-ERROR] {e}\n")
-        sys.stderr.flush()
         return jsonify({"status": "error", "message": str(e)}), 500
