@@ -113,7 +113,6 @@ def generate_qr():
         }), 200
 
     except Exception as e:
-        sys.stderr.write(f"[QR-ERROR] {e}
-")
+        sys.stderr.write(f"[QR-ERROR] {e}\n")
         sys.stderr.flush()
         return jsonify({"status": "error", "message": str(e)}), 500
