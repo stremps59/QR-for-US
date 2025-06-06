@@ -3,12 +3,11 @@ import os
 import io
 import uuid
 import base64
-import qrcode_styled as qrcode
+import qrcode
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
 
-# Advanced styling modules
 from qrcode.image.styledpil import StyledPilImage
 from qrcode.image.styles.moduledrawers import SquareModuleDrawer, RoundedModuleDrawer, CircleModuleDrawer
 from qrcode.image.styles.eyedrawers import SquareEyeDrawer, RoundedEyeDrawer
@@ -28,7 +27,7 @@ def home():
 @app.route("/generate_qr", methods=["POST"])
 def generate_qr():
     try:
-        data = request.json or {}
+        data = request.get_json(force=True) or {}
         fields = data.get("data", {}).get("fields", [])
 
         def get_field(label, default=""):
@@ -41,7 +40,6 @@ def generate_qr():
         email = get_field("Email address", "")
         destination = get_field("Where should your QR Code point (Website/URL)?", "https://qrforus.com")
 
-        # Get all color and style fields
         border_style = get_field("Border Style?", "Square").lower()
         corner_style = get_field("Corner Finder Pattern Style?", "Standard").lower()
         border_color = get_field("Border Color (HEX# or Named color)", "black")
@@ -52,7 +50,6 @@ def generate_qr():
         print(f"Color Fields => Data: {data_color}, Border: {border_color}, Dots: {dot_color}, Center: {center_color}")
         print(f"Style Fields => Border: {border_style}, Eye: {corner_style}")
 
-        # Style logic
         module_drawer = {
             "square": SquareModuleDrawer(),
             "rounded": RoundedModuleDrawer(),
@@ -61,11 +58,9 @@ def generate_qr():
 
         eye_drawer = {
             "standard": SquareEyeDrawer(),
-            "rounded": RoundedEyeDrawer(),
-            "framed": SquareEyeDrawer()  # Placeholder
+            "rounded": RoundedEyeDrawer()
         }.get(corner_style, SquareEyeDrawer())
 
-        # Generate QR
         qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_H)
         qr.add_data(destination)
         qr.make(fit=True)
@@ -81,8 +76,7 @@ def generate_qr():
         img.save(buffered, format="PNG")
         img_base64 = base64.b64encode(buffered.getvalue()).decode()
 
-        html_body = f""" 
-        <p>Hi {first_name},</p>
+        html_body = f"""<p>Hi {first_name},</p>
         <p>Your QR Code is ready!</p>
         <p>It's attached to this email as a PNG image -- ready to use in print, online, and everywhere in between.</p>
         <p>You can use this single code in three powerful ways:</p>
@@ -129,17 +123,7 @@ def generate_qr():
 
         return jsonify({
             "message": "QR code sent",
-            "mailgun": response.text,
-            "colors": {
-                "data_color": data_color,
-                "border_color": border_color,
-                "dot_color": dot_color,
-                "center_color": center_color
-            },
-            "styles": {
-                "border_style": border_style,
-                "corner_style": corner_style
-            }
+            "mailgun": response.text
         })
 
     except Exception as e:
